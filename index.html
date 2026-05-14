@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Insurance Quote Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --navy: #1a2e4a;
+    --navy-mid: #2c4a6e;
+    --navy-light: #e8eef5;
+    --border: #d8e2ec;
+    --bg: #f0f4f8;
+    --surface: #ffffff;
+    --text: #1a1f2e;
+    --muted: #5a6a7a;
+    --rule: 1px solid #d8e2ec;
+    --r: 8px;
+    --r-lg: 12px;
+  }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); font-size: 13px; min-height: 100vh; }
+
+  /* TOP BAR */
+  .topbar {
+    background: var(--navy); height: 50px; padding: 0 1.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .tb-brand { display: flex; align-items: center; gap: 9px; }
+  .tb-icon { width: 28px; height: 28px; background: rgba(255,255,255,0.13); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 15px; }
+  .tb-title { font-size: 13px; font-weight: 600; color: #fff; }
+  .tb-sub { font-size: 10px; color: rgba(255,255,255,0.45); margin-top: 1px; }
+  .tb-tag { font-size: 10px; padding: 3px 9px; background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); border-radius: 20px; }
+
+  /* LAYOUT */
+  .main { display: grid; grid-template-columns: 400px 1fr; min-height: calc(100vh - 50px); }
+
+  /* FORM */
+  .form-panel { background: var(--surface); border-right: var(--rule); padding: 1.25rem 1.25rem 2rem; overflow-y: auto; height: calc(100vh - 50px); position: sticky; top: 50px; }
+  .sec-hdr { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin: 1.1rem 0 0.5rem; padding-bottom: 0.35rem; border-bottom: var(--rule); display: flex; align-items: center; gap: 5px; }
+  .sec-hdr:first-of-type { margin-top: 0; }
+  .sec-hdr i { font-size: 12px; }
+  .field { margin-bottom: 0.5rem; }
+  .field label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 3px; font-weight: 500; }
+  .field input, .field select, .field textarea {
+    width: 100%; font-size: 12px; padding: 6px 9px;
+    border: var(--rule); border-radius: var(--r);
+    background: var(--surface); color: var(--text);
+    font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.15s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--navy-mid); box-shadow: 0 0 0 3px rgba(44,74,110,0.08); }
+  .field textarea { resize: vertical; min-height: 56px; line-height: 1.5; }
+  .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+
+  /* Bank rows */
+  .bank-row { display: flex; align-items: flex-end; gap: 5px; margin-bottom: 5px; }
+  .bank-row .field { flex: 1; margin-bottom: 0; }
+  .bank-row-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 7px; flex: 1; }
+  .rm-btn { background: none; border: var(--rule); border-radius: var(--r); color: #c53030; cursor: pointer; padding: 6px 7px; font-size: 13px; flex-shrink: 0; transition: background 0.12s; }
+  .rm-btn:hover { background: #fff5f5; border-color: #e53e3e; }
+  .add-btn { background: none; border: 1px dashed var(--border); border-radius: var(--r); color: var(--navy-mid); cursor: pointer; padding: 5px 11px; font-size: 11px; font-family: 'Inter', sans-serif; display: flex; align-items: center; gap: 4px; width: 100%; margin-top: 2px; transition: background 0.12s; font-weight: 500; }
+  .add-btn:hover { background: var(--navy-light); border-color: var(--navy-mid); }
+
+  .gen-btn { width: 100%; margin-top: 1.1rem; padding: 10px; background: var(--navy); color: #fff; border: none; border-radius: var(--r); font-size: 13px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.15s; }
+  .gen-btn:hover { background: var(--navy-mid); }
+  .prt-btn { width: 100%; margin-top: 7px; padding: 9px; background: var(--navy-light); color: var(--navy); border: 1px solid var(--navy-mid); border-radius: var(--r); font-size: 12px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.15s; }
+  .prt-btn:hover { background: #d0dff0; }
+
+  /* PREVIEW */
+  .preview-panel { padding: 1.5rem 2rem; overflow-y: auto; }
+  .prev-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.1rem; }
+  .prev-topbar h2 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); }
+  .copy-btn { font-size: 11px; color: var(--muted); background: var(--surface); border: var(--rule); border-radius: var(--r); padding: 5px 11px; cursor: pointer; display: flex; align-items: center; gap: 5px; font-family: 'Inter', sans-serif; font-weight: 500; transition: background 0.12s; }
+  .copy-btn:hover { background: var(--bg); }
+  .placeholder { text-align: center; padding: 5rem 2rem; color: var(--muted); }
+  .placeholder i { font-size: 44px; display: block; margin-bottom: 1rem; opacity: 0.25; }
+  .placeholder p { font-size: 13px; line-height: 1.7; }
+
+  /* ══ INVOICE CARD ══ */
+  /* ── INVOICE CARD — matches Vanguard PDF exactly ── */
+  .inv-card {
+    background: #fff;
+    border: 1px solid #ccc;
+    max-width: 680px;
+    margin: 0 auto;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    font-family: 'Libre Baskerville', 'Times New Roman', Times, serif;
+    font-size: 13px;
+    color: #000;
+    line-height: 1.5;
+  }
+
+  /* Header: company text centred, logo top-right */
+  .inv-header {
+    padding: 1.25rem 2rem 0.75rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    border-bottom: none;
+    position: relative;
+  }
+  .inv-logo-box {
+    position: absolute;
+    top: 1rem; right: 1.5rem;
+    width: 150px;
+    display: flex; align-items: flex-start; justify-content: flex-end;
+  }
+  .inv-logo-box img { width: 100%; height: auto; object-fit: contain; }
+  .inv-logo-initials {
+    width: 70px; height: 36px;
+    background: #e8eef5; border: 1px solid #ccc; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: #1a2e4a;
+  }
+  .inv-header-text { flex: 1; text-align: center; padding-right: 160px; }
+  .inv-co-name {
+    font-size: 14.5px; font-weight: 700; color: #000;
+    letter-spacing: 0.05em; margin-bottom: 5px;
+    font-family: 'Libre Baskerville', 'Times New Roman', Times, serif;
+    text-transform: uppercase;
+  }
+  .inv-co-addr {
+    font-size: 11.5px; color: #000; line-height: 1.45;
+    font-family: 'Libre Baskerville', 'Times New Roman', Times, serif;
+  }
+  .inv-title-word {
+    display: block;
+    margin-top: 0.6rem;
+    font-size: 15px; font-weight: 700;
+    color: #c0392b;
+    font-family: 'Libre Baskerville', 'Times New Roman', Times, serif;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  /* Two-column label: value rows — exactly like the PDF */
+  .inv-body { padding: 0.75rem 2rem 0; }
+  .inv-row {
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    padding: 2.5px 0;
+    font-size: 12.5px;
+    font-family: 'Libre Baskerville', 'Times New Roman', Times, serif;
+    color: #000;
+    line-height: 1.55;
+  }
+  .inv-row-lbl { font-weight: 400; }
+  .inv-row-val { font-weight: 400; }
+  .inv-row.bold .inv-row-lbl,
+  .inv-row.bold .inv-row-val { font-weight: 700; font-size: 13px; }
+  .inv-divider { height: 1px; background: #000; margin: 0 2rem; }
+
+  /* Payment paragraph */
+  .inv-payment-text {
+    padding: 0.85rem 2rem 0.5rem;
+    font-size: 12px; line-height: 1.7;
+    font-family: 'Libre Baskerville', 'Times New Roman', Times, serif;
+    color: #000;
+  }
+
+  /* Bank detail rows — label: value like the PDF */
+  .inv-bank { padding: 0 2rem 0.25rem; }
+  .inv-bank-row {
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    padding: 0.5px 0;
+    font-size: 12px;
+    font-family: 'Libre Baskerville', 'Times New Roman', Times, serif;
+    color: #000;
+    line-height: 1.35;
+  }
+  .inv-bank-lbl { font-weight: 400; }
+  .inv-bank-val { font-weight: 400; }
+
+  /* Footer / signatory */
+  .inv-footer {
+    padding: 1.5rem 2rem 2rem;
+    display: flex; justify-content: flex-end;
+  }
+  .sig-block { text-align: left; min-width: 220px; }
+  .sig-behalf {
+    font-size: 12px; color: #000; margin-bottom: 0;
+    font-family: 'Libre Baskerville', 'Times New Roman', Times, serif; line-height: 1.6;
+  }
+  .sig-stamp-wrap { position: relative; width: 100px; height: 100px; margin: 4px 0; }
+  .sig-stamp {
+    width: 100px; height: 100px; border-radius: 50%;
+    border: 2px dashed #bbb;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: #aaa; font-style: italic;
+    background: #fafafa; overflow: hidden;
+  }
+  .sig-stamp img { width: 100%; height: 100%; object-fit: contain; border-radius: 50%; }
+  .sig-stamp.has-image { border: none; background: transparent; }
+  .sig-name {
+    font-size: 12px; font-weight: 400; color: #000;
+    font-family: 'Libre Baskerville', 'Times New Roman', Times, serif;
+    margin-top: 2px;
+  }
+  .sig-role {
+    font-size: 12px; font-weight: 400; color: #000;
+    font-family: 'Libre Baskerville', 'Times New Roman', Times, serif;
+  }
+
+  /* Duplicate warning modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55); z-index: 999;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: var(--r-lg);
+    padding: 2rem; max-width: 440px; width: 90%;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    border-top: 4px solid #c0392b;
+  }
+  .modal-icon { font-size: 36px; color: #c0392b; margin-bottom: 0.75rem; }
+  .modal-title { font-size: 16px; font-weight: 700; color: #1a1f2e; margin-bottom: 0.5rem; }
+  .modal-body { font-size: 13px; color: var(--muted); line-height: 1.7; margin-bottom: 1.25rem; }
+  .modal-ref { font-size: 13px; font-weight: 700; color: #1a2e4a; background: var(--navy-light); padding: 8px 12px; border-radius: var(--r); margin-bottom: 1.25rem; display: inline-block; }
+  .modal-close { width: 100%; padding: 9px; background: #c0392b; color: #fff; border: none; border-radius: var(--r); font-size: 13px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; }
+  .modal-close:hover { background: #a93226; }
+
+  /* Config banner */
+  .config-banner {
+    background: #fffbeb; border: 1px solid #f6c90e;
+    border-radius: var(--r); padding: 10px 14px;
+    font-size: 11px; color: #7d6608; margin-bottom: 1rem;
+    display: flex; align-items: flex-start; gap: 8px; line-height: 1.6;
+  }
+  .config-banner i { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+  .config-banner a { color: #1a2e4a; font-weight: 600; }
+
+  /* PRINT */
+  @media print {
+    .topbar, .form-panel, .prev-topbar, .gen-btn { display: none !important; }
+    .main { display: block; }
+    .preview-panel { padding: 0; }
+    .inv-card { box-shadow: none; max-width: 100%; border-radius: 0; }
+    body { background: #fff; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="tb-brand">
+    <div class="tb-icon"><i class="ti ti-shield-check"></i></div>
+    <div>
+      <div class="tb-title">Insurance Quote Generator</div>
+      <div class="tb-sub">Vanguard Assurance · Non-motor policies</div>
+    </div>
+  </div>
+  <span class="tb-tag">v1.0</span>
+</div>
+
+<div class="main">
+
+  <!-- ══ FORM ══ -->
+  <div class="form-panel">
+
+    <input type="hidden" id="co-name"   value="Vanguard Assurance Company Limited" />
+    <input type="hidden" id="co-addr1"  value="No. 21 Independence Avenue" />
+    <input type="hidden" id="co-addr2"  value="P.O. Box 1868, Accra, Ghana" />
+    <input type="hidden" id="co-tel"    value="+233 0302 666 485-7/782 921-2" />
+    <input type="hidden" id="co-web"    value="www.vanguardassurance.com" />
+    <input type="hidden" id="co-branch" value="Corporate Distribution" />
+
+    <div class="sec-hdr"><i class="ti ti-user-edit"></i> Signatory</div>
+    <div class="g2">
+      <div class="field"><label>Quoted by</label><input id="sig-name" placeholder="e.g. Enoch Obeng" /></div>
+      <div class="field"><label>Role / title</label><input id="sig-role" placeholder="e.g. Corporate Distribution" /></div>
+    </div>
+
+    <div class="sec-hdr"><i class="ti ti-user"></i> Client / insured</div>
+    <div class="field"><label>Insured name</label><input id="cl-name" placeholder="Full legal name or company name" /></div>
+
+    <div class="sec-hdr"><i class="ti ti-file-text"></i> Policy details</div>
+    <div class="g2">
+      <div class="field">
+        <label>Invoice / quote number <span style="font-size:10px;color:#8a96a3;font-weight:400;">(auto-generated)</span></label>
+        <input id="p-inv" readonly style="background:#f4f6f8;color:#5a6a7a;cursor:default;" placeholder="Select a class to generate" />
+      </div>
+      <div class="field"><label>Date</label><input id="p-date" type="date" /></div>
+    </div>
+    <div class="field">
+      <label>Class of insurance (non-motor)</label>
+      <select id="p-class" onchange="updateQuoteRef()">
+        <option value="">— Select class —</option>
+        <optgroup label="Property">
+          <option>Fire &amp; Perils</option>
+          <option>Burglary &amp; Theft</option>
+          <option>All Risks</option>
+          <option>Consequential Loss / Business Interruption</option>
+        </optgroup>
+        <optgroup label="Bonds &amp; Liability">
+          <option>Performance Bond</option>
+          <option>Bid / Tender Bond</option>
+          <option>Advance Payment Bond</option>
+          <option>Customs Bond</option>
+          <option>Public Liability</option>
+          <option>Employers Liability / Workmen's Compensation</option>
+          <option>Professional Indemnity</option>
+          <option>Directors &amp; Officers Liability</option>
+        </optgroup>
+        <optgroup label="Marine">
+          <option>Marine Cargo</option>
+          <option>Marine Hull</option>
+        </optgroup>
+        <optgroup label="Engineering">
+          <option>Contractor's All Risks (CAR)</option>
+          <option>Erection All Risks (EAR)</option>
+          <option>Machinery Breakdown</option>
+          <option>Electronic Equipment Insurance</option>
+        </optgroup>
+        <optgroup label="Life &amp; Health">
+          <option>Life — Term Assurance</option>
+          <option>Life — Endowment</option>
+          <option>Group Life</option>
+          <option>Health / Medical</option>
+          <option>Personal Accident</option>
+        </optgroup>
+        <optgroup label="Specialty">
+          <option>Travel Insurance</option>
+          <option>Fidelity Guarantee</option>
+          <option>Money Insurance</option>
+          <option>Goods in Transit</option>
+          <option>Agricultural Insurance</option>
+          <option>Other (non-motor)</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="field"><label>Sum insured (GHS)</label><input id="p-sum" type="text" placeholder="e.g. 10,500,000.00" oninput="fmtInput(this)" /></div>
+    <div class="field"><label>Premium (GHS)</label><input id="p-prem" type="text" placeholder="e.g. 89,250.00" oninput="fmtInput(this)" /></div>
+    <div class="g2">
+      <div class="field"><label>Policy start date</label><input id="p-start" type="date" /></div>
+      <div class="field"><label>Policy end date</label><input id="p-end" type="date" /></div>
+    </div>
+
+    <div class="sec-hdr"><i class="ti ti-building-bank"></i> Bank / payment details</div>
+    <div class="field"><label>Payment instruction text</label>
+      <textarea id="pay-intro" rows="2">Kindly use the details below for bank payments or issue a cheque in the name of Vanguard Assurance Co. Ltd to enable us issue policy document.</textarea>
+    </div>
+    <div id="bank-container"></div>
+    <button class="add-btn" onclick="addBankField()"><i class="ti ti-plus"></i> Add bank detail row</button>
+
+    <div class="sec-hdr"><i class="ti ti-notes"></i> Conditions / notes</div>
+    <div class="field"><textarea id="t-notes" rows="3" placeholder="e.g. Subject to satisfactory inspection. Cover commences upon receipt of premium."></textarea></div>
+
+    <button class="gen-btn" onclick="generateQuote()"><i class="ti ti-eye"></i> Generate quote</button>
+    <div class="sec-hdr" style="margin-top:1rem;"><i class="ti ti-send"></i> Send quote by email</div>
+    <div class="field">
+      <label>Recipient email address</label>
+      <input id="send-email" type="email" placeholder="client@email.com" />
+    </div>
+    <button class="prt-btn" onclick="sendQuoteEmail()" id="send-btn">
+      <i class="ti ti-mail-forward"></i> Send quote to client
+    </button>
+
+  </div>
+
+  <!-- ══ PREVIEW ══ -->
+  <div class="preview-panel">
+    <div class="prev-topbar">
+      <h2>Quote preview</h2>
+      <button class="copy-btn" onclick="copyText()" id="copy-btn"><i class="ti ti-copy"></i> Copy as text</button>
+    </div>
+    <div id="quote-output">
+      <div class="placeholder">
+        <i class="ti ti-file-invoice"></i>
+        <p>Fill in the form and click<br><strong>Generate quote</strong> to preview the invoice-style output.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+  <!-- Duplicate warning modal -->
+  <div class="modal-overlay" id="dup-modal">
+    <div class="modal-box">
+      <div class="modal-icon"><i class="ti ti-alert-triangle"></i></div>
+      <div class="modal-title">Duplicate Quote Detected</div>
+      <div class="modal-body" id="modal-body">A matching quote for the same policy class and sum insured was generated within the last 7 days.</div>
+      <div class="modal-ref" id="modal-ref"></div>
+      <div style="font-size:11px;color:#c0392b;margin-bottom:1.25rem;" id="modal-note">An alert has been sent to the compliance officer.</div>
+      <button class="modal-close" onclick="closeModal()"><i class="ti ti-x"></i> Understood — Close</button>
+    </div>
+  </div>
+
+<script>
+  // ═══════════════════════════════════════════════════════
+  // CONFIGURATION — replace these before deploying
+  // ═══════════════════════════════════════════════════════
+  const SHEET_ID         = 'YOUR_SHEET_ID';          // Google Sheet ID
+  const SHEET_NAME       = 'QuoteLog';               // Tab name in Google Sheet
+  const APPS_SCRIPT_URL  = 'https://script.google.com/macros/s/AKfycbxK45-N0oDqqZb0y77iN21MiRJHb5LV6ldqrZ6msGM5CUUe7mKTf-wvr9JakfdGdnAeuw/exec';
+  // Published CSV URL — used for duplicate checking (no CORS issues)
+  const SHEET_CSV_URL    = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ2uB78rTJfRnrY-WW9N36S4HIPOgHsnrsBf6ljMmkISpFYFu1hsReua32UU-NGKQ/pub?gid=790126753&single=true&output=csv';
+  const EMAILJS_PUBLIC   = 'K693tN09tCA75U4kC';
+  const EMAILJS_SERVICE  = 'service_e99fodn';
+  const EMAILJS_TEMPLATE = 'template_y95ri3s';
+  const ALERT_EMAIL      = 'mdavor@vanguardassurance.com';
+
+  const LOGO_DATA_URL = 'data:image/jpeg;base64,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';
+  const STAMP_DATA_URL = '';
+  let bankCount = 0;
+
+  // ── BANK FIELD HELPERS ──────────────────────────────────
+  function addBankField(label, val) {
+    bankCount++;
+    const id = bankCount;
+    const wrap = document.createElement('div');
+    wrap.className = 'bank-row';
+    wrap.id = 'brow-' + id;
+    wrap.innerHTML = `
+      <div class="bank-row-grid">
+        <input id="bk-l-${id}" placeholder="Label (e.g. Bank name)" value="${label||''}" style="font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;outline:none;width:100%;" />
+        <input id="bk-v-${id}" placeholder="Value" value="${val||''}" style="font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;outline:none;width:100%;" />
+      </div>
+      <button class="rm-btn" onclick="removeBankRow(${id})"><i class="ti ti-x"></i></button>
+    `;
+    document.getElementById('bank-container').appendChild(wrap);
+  }
+
+  function removeBankRow(id) {
+    const el = document.getElementById('brow-' + id);
+    if (el) el.remove();
+  }
+
+  function getBankRows() {
+    const rows = [];
+    document.querySelectorAll('[id^="brow-"]').forEach(row => {
+      const id = row.id.replace('brow-','');
+      const l = document.getElementById('bk-l-'+id)?.value.trim();
+      const v = document.getElementById('bk-v-'+id)?.value.trim();
+      if (l || v) rows.push({l: l||'', v: v||''});
+    });
+    return rows;
+  }
+
+  // ── UTILITIES ───────────────────────────────────────────
+  function g(id) { return document.getElementById(id)?.value.trim() || ''; }
+
+  function fmt(n) {
+    const num = parseFloat(String(n).replace(/,/g,''));
+    if (isNaN(num)) return n || '—';
+    return num.toLocaleString('en-GH', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  function fmtInput(el) {
+    // Strip everything except digits and decimal point
+    const raw = el.value.replace(/[^0-9.]/g, '');
+    const parts = raw.split('.');
+    // Format integer part with commas
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    // Keep at most 2 decimal places
+    el.value = parts.length > 1 ? parts[0] + '.' + parts[1].slice(0,2) : parts[0];
+    // Store raw numeric value in data attribute for calculations
+    el.dataset.raw = raw;
+  }
+
+  function fmtDate(s) {
+    if (!s) return '';
+    const dt = new Date(s);
+    if (isNaN(dt)) return s;
+    return dt.toLocaleDateString('en-GB', {day:'2-digit', month:'2-digit', year:'numeric'});
+  }
+
+  // Product class initials map — Vanguard product portfolio
+  const CLASS_INITIALS = {
+    // Fire
+    'Assets All Risk Policy':                     'AA',
+    'Combined Fire & Theft':                      'CF',
+    'Industrial Fire':                            'IF',
+    'Commercial Fire':                            'CO',
+    // General Accident
+    'Group Personal Accident':                    'GP',
+    'Burglary (Business Premises)':               'BU',
+    'Fidelity Guarantee':                         'FG',
+    'Money Insurance':                            'MI',
+    'Public Liability':                           'PL',
+    'Products Liability':                         'PR',
+    'Professional Indemnity':                     'PI',
+    'Goods-in-Transit':                           'GT',
+    'Cash-in-Transit':                            'CT',
+    'Bankers Indemnity':                          'BI',
+    'Plate Glass':                                'PG',
+    'Directors Liability':                        'DL',
+    // Engineering
+    'Boiler & Pressure Plant Insurance':          'BP',
+    'Electronic Equipment Insurance':             'EE',
+    'LOP following Machinery Breakdown/BPI/EEQ':  'LM',
+    'Thermal Risks and Machinery Loss of Profit': 'TR',
+    'Construction Policies':                      'CP',
+    'Contractors All Risk Insurance':             'CA',
+    'Erection All Risk Insurance':                'EA',
+    'Civil Engineering Completed Risk':           'CE',
+    // Bonds
+    'Bid Bond / Tender Security':                 'BB',
+    'Performance Bond':                           'PB',
+    'Advance Payment / Mobilization Bond':        'AP',
+    'Retention Bond':                             'RB',
+    'Customs Bond':                               'CB',
+    // Workmen Compensation
+    'Workmen Compensation':                       'WC',
+    // Marine
+    'Marine Cargo General':                       'MC',
+    'Marine Cargo Exports':                       'ME',
+    'Marine Certificate Policies':                'MP',
+    'Stevedores Legal Liability':                 'SL',
+  };
+
+  function genQuoteRef(pClass) {
+    if (!pClass) return '';
+    const prefix = CLASS_INITIALS[pClass] || 'VA';
+    const yr = new Date().getFullYear();
+    // Zero-padded sequential-style serial: mmddHHMM for near-uniqueness
+    const now = new Date();
+    const mm  = String(now.getMonth()+1).padStart(2,'0');
+    const dd  = String(now.getDate()).padStart(2,'0');
+    const hh  = String(now.getHours()).padStart(2,'0');
+    const min = String(now.getMinutes()).padStart(2,'0');
+    return `${prefix}/${yr}/${mm}${dd}${hh}${min}`;
+  }
+
+  function updateQuoteRef() {
+    const pClass = g('p-class');
+    const ref = genQuoteRef(pClass);
+    const field = document.getElementById('p-inv');
+    if (ref) field.value = ref;
+  }
+
+  // ── SEND QUOTE BY EMAIL ──────────────────────────────────
+  async function sendQuoteEmail() {
+    const recipientEmail = g('send-email');
+    if (!recipientEmail) {
+      alert('Please enter a recipient email address.');
+      return;
+    }
+    const card = document.getElementById('inv-card');
+    if (!card) {
+      alert('Please generate the quote first before sending.');
+      return;
+    }
+
+    const btn = document.getElementById('send-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ti ti-loader ti-spin"></i> Sending...';
+
+    // Build plain-text version of the quote for email body
+    const quoteText = card.innerText.replace(/\n{3,}/g,'\n\n').trim();
+
+    // Use mailto as primary method (works without backend)
+    const subject  = encodeURIComponent(`Insurance Quote – ${g('p-inv') || ''} – ${g('cl-name') || ''}`);
+    const body     = encodeURIComponent(quoteText + '\n\n---\nThis quote was generated by Vanguard Assurance Company Limited.\nFor queries contact: ' + (g('co-email') || 'info@vanguardassurance.com'));
+    const mailtoLink = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
+    window.location.href = mailtoLink;
+
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-mail-forward"></i> Send quote to client';
+    }, 2000);
+  }
+
+  // ── MODAL ────────────────────────────────────────────────
+  function showDupModal(matchRef, officerName) {
+    document.getElementById('modal-body').textContent =
+      `A matching quote for the same policy class and sum insured was already generated within the last 7 days by this branch.`;
+    document.getElementById('modal-ref').textContent = `Existing quote reference: ${matchRef}`;
+    document.getElementById('modal-note').textContent =
+      `An alert has been sent to the compliance officer. Please use the existing reference.`;
+    document.getElementById('dup-modal').classList.add('active');
+  }
+
+  function closeModal() {
+    document.getElementById('dup-modal').classList.remove('active');
+  }
+
+  // ── GOOGLE SHEETS: READ via published CSV (no CORS issues) ──
+  // ── LOCAL QUOTE STORE — persists across sessions via localStorage ──────
+  const LOCAL_STORE_KEY = 'vanguard_quote_log';
+
+  function saveQuoteLocally(quoteData) {
+    try {
+      const existing = JSON.parse(localStorage.getItem(LOCAL_STORE_KEY) || '[]');
+      existing.push(quoteData);
+      // Keep only last 200 quotes to avoid storage bloat
+      const trimmed = existing.slice(-200);
+      localStorage.setItem(LOCAL_STORE_KEY, JSON.stringify(trimmed));
+    } catch(e) {
+      console.warn('Could not save to localStorage:', e);
+    }
+  }
+
+  function getLocalQuotes() {
+    try {
+      return JSON.parse(localStorage.getItem(LOCAL_STORE_KEY) || '[]');
+    } catch(e) {
+      return [];
+    }
+  }
+
+  async function fetchRecentQuotes() {
+    // Primary: read from localStorage — works immediately, no CORS issues
+    const local = getLocalQuotes();
+    if (local.length > 0) {
+      console.log('Duplicate check using local store:', local.length, 'quotes');
+      return local;
+    }
+    // Fallback: try JSONP from Apps Script
+    return new Promise((resolve) => {
+      const oldScript = document.getElementById('__gsCallback');
+      if (oldScript) oldScript.remove();
+      const timer = setTimeout(() => { resolve([]); }, 4000);
+      window.__gsResolve = function(data) {
+        clearTimeout(timer);
+        const quotes = data.quotes || [];
+        // Cache into localStorage for future checks
+        if (quotes.length > 0) {
+          localStorage.setItem(LOCAL_STORE_KEY, JSON.stringify(quotes));
+        }
+        resolve(quotes);
+      };
+      const script = document.createElement('script');
+      script.id = '__gsCallback';
+      script.src = APPS_SCRIPT_URL + '?callback=__gsResolve&bust=' + Date.now();
+      script.onerror = () => { clearTimeout(timer); resolve([]); };
+      document.body.appendChild(script);
+    });
+  }
+
+    // ── GOOGLE SHEETS: WRITE via Apps Script (no-cors) + local store ───
+  async function logQuoteToSheet(quoteData) {
+    // Always save locally first — this powers the duplicate check
+    saveQuoteLocally({
+      quoteRef:    quoteData.quoteRef,
+      date:        quoteData.date || new Date().toISOString(),
+      officer:     quoteData.officer,
+      client:      quoteData.client,
+      policyClass: quoteData.policyClass,
+      sumInsured:  String(quoteData.sumInsured).replace(/,/g,''),
+      premium:     String(quoteData.premium).replace(/,/g,''),
+    });
+    // Also write to Google Sheet (fire-and-forget)
+    if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL') return;
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {'Content-Type': 'text/plain'},
+        body: JSON.stringify({quote: quoteData})
+      });
+    } catch(e) {
+      console.warn('Could not log quote to Google Sheet:', e);
+    }
+  }
+
+  // ── EMAILJS ALERT ────────────────────────────────────────
+  function sendDuplicateAlert(officerName, pClass, pSum, existingRef, newRef) {
+    if (typeof emailjs === 'undefined') { console.warn('EmailJS SDK not loaded'); return; }
+    emailjs.init(EMAILJS_PUBLIC);
+    emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+      to_email:      ALERT_EMAIL,
+      officer_name:  officerName || 'Unknown officer',
+      policy_class:  pClass,
+      sum_insured:   pSum,
+      existing_ref:  existingRef,
+      attempted_ref: newRef,
+      attempt_time:  new Date().toLocaleString('en-GB'),
+    }).catch(err => console.warn('EmailJS error:', err));
+  }
+
+  // ── MAIN: GENERATE QUOTE ─────────────────────────────────
+  async function generateQuote() {
+    const btn = document.querySelector('.gen-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ti ti-loader ti-spin"></i> Checking for duplicates...';
+    try {
+
+    const coName   = g('co-name')   || 'Vanguard Assurance Company Limited';
+    const coAddr1  = g('co-addr1');
+    const coAddr2  = g('co-addr2');
+    const coTel    = g('co-tel');
+    const coWeb    = g('co-web');
+    const coBranch = g('co-branch');
+    const sigName  = g('sig-name');
+    const sigRole  = g('sig-role');
+    const clName   = g('cl-name')   || '[Client Name]';
+    // Use existing ref if already generated; regenerate only if still blank
+    if (!g('p-inv') && g('p-class')) updateQuoteRef();
+    const pInv     = g('p-inv') || genQuoteRef(g('p-class')) || 'VA/' + new Date().getFullYear() + '/—';
+    const pDate    = g('p-date');
+    const pClass   = g('p-class')   || '';
+    const pSum     = g('p-sum')     || '';
+    const pPrem    = g('p-prem')    || '';
+    const pStart   = g('p-start');
+    const pEnd     = g('p-end');
+    const payIntro = g('pay-intro');
+    const tNotes   = g('t-notes');
+
+    // ── DUPLICATE CHECK ──────────────────────────────────
+    if (pClass && pSum) {
+      const recent = await fetchRecentQuotes();
+      const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+      const normSum = parseFloat(String(pSum).replace(/,/g,''));
+      console.log('Checking duplicates — local quotes:', recent.length, '| class:', pClass, '| sum:', normSum);
+
+      // Debug: log what we read from the sheet
+      console.log('Duplicate check — records fetched:', recent.length);
+      console.log('Checking against — class:', pClass, 'sum:', normSum);
+      if (recent.length > 0) console.log('First record:', JSON.stringify(recent[0]));
+
+      const match = recent.find(q => {
+        // Parse date flexibly — handle ISO strings, DD/MM/YYYY, and spreadsheet formats
+        let qDate = 0;
+        if (q.date) {
+          const raw = String(q.date).trim();
+          // Try direct parse first
+          let d = new Date(raw);
+          // If that fails try DD/MM/YYYY
+          if (isNaN(d.getTime())) {
+            const parts = raw.split(/[\/\-]/);
+            if (parts.length === 3) {
+              // Could be DD/MM/YYYY or MM/DD/YYYY — try both
+              d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+              if (isNaN(d.getTime())) d = new Date(`${parts[2]}-${parts[0]}-${parts[1]}`);
+            }
+          }
+          qDate = isNaN(d.getTime()) ? Date.now() : d.getTime();
+        }
+        const qSum   = parseFloat(String(q.sumInsured).replace(/,/g,''));
+        const sameClass = q.policyClass.trim().toLowerCase() === pClass.trim().toLowerCase();
+        const sameSum   = !isNaN(qSum) && !isNaN(normSum) && Math.abs(qSum - normSum) < 1;
+        const inWindow  = qDate >= sevenDaysAgo;
+        console.log(`  Row: class="${q.policyClass}" sum="${q.sumInsured}" date="${q.date}" → sameClass=${sameClass} sameSum=${sameSum} inWindow=${inWindow}`);
+        return sameClass && sameSum && inWindow;
+      });
+
+      if (match) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
+        sendDuplicateAlert(sigName, pClass, pSum, match.quoteRef, pInv);
+        showDupModal(match.quoteRef, sigName);
+        return;
+      }
+    }
+
+    // ── LOG THIS QUOTE ────────────────────────────────────
+    await logQuoteToSheet({
+      quoteRef:    pInv,
+      date:        new Date().toISOString(),
+      officer:     sigName,
+      client:      clName,
+      policyClass: pClass,
+      sumInsured:  pSum,
+      premium:     pPrem,
+    });
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
+
+    // ── RENDER INVOICE ────────────────────────────────────
+    const bankRows = getBankRows();
+    const today    = pDate ? fmtDate(pDate) : new Date().toLocaleDateString('en-GB');
+    const initials = coName.split(' ').filter(w => w.length > 2).slice(0,2).map(w=>w[0]).join('') || coName.slice(0,2).toUpperCase();
+    const logoSrc  = LOGO_DATA_URL;
+    const stampSrc = STAMP_DATA_URL;
+    const addrLines = [coAddr1, coAddr2, coTel ? 'Tel: '+coTel : '', coWeb ? 'Website: '+coWeb : ''].filter(Boolean);
+
+    const bankHtml = bankRows.length > 0 ? `
+      <div class="pay-grid">
+        ${bankRows.map(r => `
+          <div class="pay-item">
+            <div class="pay-lbl">${r.l}</div>
+            <div class="pay-val">${r.v}</div>
+          </div>`).join('')}
+      </div>` : '';
+
+    const period = (pStart && pEnd) ? `${fmtDate(pStart)} – ${fmtDate(pEnd)}` : (pStart ? `From ${fmtDate(pStart)}` : '');
+
+    document.getElementById('quote-output').innerHTML = `
+      <div class="inv-card" id="inv-card">
+
+        <!-- HEADER: logo left, company centre -->
+        <div class="inv-header">
+          <div class="inv-logo-box">
+            ${logoSrc
+              ? `<img src="${logoSrc}" alt="Vanguard Assurance logo" />`
+              : `<div class="inv-logo-initials">${initials}</div>`}
+          </div>
+          <div class="inv-header-text">
+            <div class="inv-co-name">${coName}</div>
+            <div class="inv-co-addr">${addrLines.join('<br>')}</div>
+            <span class="inv-title-word">INVOICE</span>
+          </div>
+        </div>
+
+        <!-- POLICY DETAILS: label / value rows -->
+        <div class="inv-body">
+          <div class="inv-row"><span class="inv-row-lbl">Invoice Number:</span><span class="inv-row-val">${pInv}</span></div>
+          <div class="inv-row"><span class="inv-row-lbl">Date:</span><span class="inv-row-val">${today}</span></div>
+          <div class="inv-row"><span class="inv-row-lbl">Insured:</span><span class="inv-row-val">${clName}</span></div>
+          <div class="inv-row"><span class="inv-row-lbl">Cover:</span><span class="inv-row-val">${pClass || '—'}</span></div>
+          ${period ? `<div class="inv-row"><span class="inv-row-lbl">Period of Cover:</span><span class="inv-row-val">${period}</span></div>` : ''}
+          <div class="inv-row bold"><span class="inv-row-lbl">Sum Insured:</span><span class="inv-row-val">GHS ${fmt(pSum) || '—'}</span></div>
+          <div class="inv-row bold"><span class="inv-row-lbl">Premium:</span><span class="inv-row-val">GHS ${fmt(pPrem) || '—'}</span></div>
+        </div>
+
+        <!-- PAYMENT INSTRUCTION PARAGRAPH -->
+        ${payIntro ? `<div class="inv-payment-text">${payIntro}</div>` : ''}
+
+        <!-- BANK DETAIL ROWS -->
+        <div class="inv-bank">
+          ${bankRows.map(r => `
+            <div class="inv-bank-row">
+              <span class="inv-bank-lbl">${r.l}:</span>
+              <span class="inv-bank-val">${r.v}</span>
+            </div>`).join('')}
+        </div>
+
+        ${tNotes ? `<div class="inv-payment-text" style="font-style:italic;color:#444;">${tNotes}</div>` : ''}
+
+        <!-- FOOTER: signatory right-aligned -->
+        <div class="inv-footer">
+          <div class="sig-block">
+            <div class="sig-behalf">For and On Behalf of,<br>${coName}.</div>
+            <div class="sig-stamp-wrap">
+              <div class="sig-stamp${stampSrc ? ' has-image' : ''}">
+                ${stampSrc ? `<img src="${stampSrc}" alt="Company stamp" />` : '<span>Stamp</span>'}
+              </div>
+            </div>
+            <div class="sig-name">${sigName || '[Quote By]'},</div>
+            <div class="sig-role">${sigRole || '[Role / Title]'}.</div>
+          </div>
+        </div>
+
+      </div>
+    `;
+    } catch(err) {
+      console.error('generateQuote error:', err);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
+      document.getElementById('quote-output').innerHTML =
+        `<div style="padding:2rem;color:#c0392b;font-family:sans-serif;font-size:13px;">
+          <strong>Error rendering quote.</strong><br>${err.message}
+        </div>`;
+    }
+  }
+
+  // ── COPY AS TEXT ─────────────────────────────────────────
+  function copyText() {
+    const card = document.getElementById('inv-card');
+    if (!card) return;
+    const text = card.innerText.replace(/\n{3,}/g, '\n\n').trim();
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('copy-btn');
+      btn.innerHTML = '<i class="ti ti-check"></i> Copied!';
+      setTimeout(() => { btn.innerHTML = '<i class="ti ti-copy"></i> Copy as text'; }, 2200);
+    });
+  }
+
+  // ── PREFILL ──────────────────────────────────────────────
+  (function prefill() {
+    document.getElementById('p-date').value = new Date().toISOString().slice(0,10);
+    addBankField('Branch', 'Private Banking');
+    addBankField('Bank name', 'Ecobank Ghana Limited');
+    addBankField('Bank account name', 'Vanguard Assurance Company Limited');
+    addBankField('Bank account number', 'Cedi: 1441001519859 | Dollar: 3441001519858');
+    addBankField('Swift Code', 'ECOCGHAC');
+  })();
+
+</script>
+</body>
+</html>
