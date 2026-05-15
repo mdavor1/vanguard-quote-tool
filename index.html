@@ -400,7 +400,7 @@
   // ═══════════════════════════════════════════════════════
   const SHEET_ID         = 'YOUR_SHEET_ID';          // Google Sheet ID
   const SHEET_NAME       = 'QuoteLog';               // Tab name in Google Sheet
-  const APPS_SCRIPT_URL  = 'https://script.google.com/macros/s/AKfycbxK45-N0oDqqZb0y77iN21MiRJHb5LV6ldqrZ6msGM5CUUe7mKTf-wvr9JakfdGdnAeuw/exec';
+  const APPS_SCRIPT_URL  = 'https://script.google.com/macros/s/AKfycbx9XErOBsDdt3YDVB7I4MOfUqG2lExRa5NDbMj59sRESPVsZTjP_tDx4PrYksFxkJbljg/exec';
   // Published CSV URL — used for duplicate checking (no CORS issues)
   const SHEET_CSV_URL    = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ2uB78rTJfRnrY-WW9N36S4HIPOgHsnrsBf6ljMmkISpFYFu1hsReua32UU-NGKQ/pub?gid=790126753&single=true&output=csv';
   const EMAILJS_PUBLIC   = 'K693tN09tCA75U4kC';
@@ -636,9 +636,9 @@
     });
   }
 
-    // ── GOOGLE SHEETS: WRITE via Apps Script (no-cors) + local store ───
+    // ── SHEET WRITE via no-cors (fire-and-forget) + local store ────────
   async function logQuoteToSheet(quoteData) {
-    // Always save locally first — this powers the duplicate check
+    // Save locally — this is what powers duplicate detection
     saveQuoteLocally({
       quoteRef:    quoteData.quoteRef,
       date:        quoteData.date || new Date().toISOString(),
@@ -648,8 +648,8 @@
       sumInsured:  String(quoteData.sumInsured).replace(/,/g,''),
       premium:     String(quoteData.premium).replace(/,/g,''),
     });
-    // Also write to Google Sheet (fire-and-forget)
-    if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL') return;
+    // Write to Google Sheet via no-cors — the data goes through
+    // even though we can't read the response
     try {
       await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
@@ -658,14 +658,14 @@
         body: JSON.stringify({quote: quoteData})
       });
     } catch(e) {
-      console.warn('Could not log quote to Google Sheet:', e);
+      console.warn('Sheet write failed:', e);
     }
   }
 
   // ── EMAILJS ALERT ────────────────────────────────────────
   function sendDuplicateAlert(officerName, pClass, pSum, existingRef, newRef) {
     if (typeof emailjs === 'undefined') { console.warn('EmailJS SDK not loaded'); return; }
-    emailjs.init(EMAILJS_PUBLIC);
+    try { emailjs.init({ publicKey: EMAILJS_PUBLIC, blockHeadless: false }); } catch(ex) { emailjs.init(EMAILJS_PUBLIC); }
     emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
       to_email:      ALERT_EMAIL,
       officer_name:  officerName || 'Unknown officer',
