@@ -660,18 +660,57 @@
       sumInsured:  String(quoteData.sumInsured).replace(/,/g,''),
       premium:     String(quoteData.premium).replace(/,/g,''),
     });
-    // Write to Google Sheet via no-cors — the data goes through
-    // even though we can't read the response
+    // Write to Google Sheet via no-cors — data goes through silently
     try {
       await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
-        headers: {'Content-Type': 'text/plain'},
-        body: JSON.stringify({quote: quoteData})
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ quote: quoteData })
       });
-    } catch(e) {
-      console.warn('Sheet write failed:', e);
-    }
+    } catch(e) { console.warn('Sheet write failed:', e); }
+  }
+
+  // ── LOG DUPLICATE TO SHEET + localStorage ───────────────────────────
+  async function logDuplicateToSheet(officerName, pClass, pSum, existingRef, attemptedRef) {
+    try {
+      const key = 'vanguard_duplicate_log';
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      existing.push({
+        conflictId:   'CF-' + Date.now(),
+        date:         new Date().toISOString(),
+        officer:      officerName,
+        policyClass:  pClass,
+        sumInsured:   String(pSum).replace(/,/g,''),
+        existingRef:  existingRef,
+        attemptedRef: attemptedRef,
+        action:       'Blocked by system'
+      });
+      localStorage.setItem(key, JSON.stringify(existing.slice(-200)));
+    } catch(e) { console.warn('localStorage duplicate log failed:', e); }
+
+    if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL') return;
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          type: 'duplicate',
+          duplicate: {
+            conflictId:   'CF-' + Date.now(),
+            date:         new Date().toISOString(),
+            officer:      officerName || '',
+            policyClass:  pClass || '',
+            sumInsured:   String(pSum).replace(/,/g,''),
+            existingRef:  existingRef || '',
+            attemptedRef: attemptedRef || '',
+            alertSentTo:  'mdavor@vanguardassurance.com',
+            action:       'Blocked by system'
+          }
+        })
+      });
+    } catch(e) { console.warn('Duplicate sheet log failed:', e); }
   }
 
   // ── EMAILJS ALERT ────────────────────────────────────────
