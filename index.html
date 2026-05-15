@@ -400,7 +400,7 @@
   // ═══════════════════════════════════════════════════════
   const SHEET_ID         = 'YOUR_SHEET_ID';          // Google Sheet ID
   const SHEET_NAME       = 'QuoteLog';               // Tab name in Google Sheet
-  const APPS_SCRIPT_URL  = 'https://script.google.com/macros/s/AKfycbx9XErOBsDdt3YDVB7I4MOfUqG2lExRa5NDbMj59sRESPVsZTjP_tDx4PrYksFxkJbljg/exec';
+  const APPS_SCRIPT_URL  = 'https://script.google.com/macros/s/AKfycbwTyxiE4yZ5XGZsBnbADVfYGcNEnPKqNB5ZMoYlDgNQ7JPj3sLmxzOOj1UzqxVj1uYpzg/exec';
   // Published CSV URL — used for duplicate checking (no CORS issues)
   const SHEET_CSV_URL    = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ2uB78rTJfRnrY-WW9N36S4HIPOgHsnrsBf6ljMmkISpFYFu1hsReua32UU-NGKQ/pub?gid=790126753&single=true&output=csv';
   const EMAILJS_PUBLIC   = 'K693tN09tCA75U4kC';
@@ -584,6 +584,10 @@
   }
 
   // ── GOOGLE SHEETS: READ via published CSV (no CORS issues) ──
+  // ── CONFIG ──────────────────────────────────────────────────────────────
+  // Duplicate check uses JSONP (browser GET) as primary — reads live sheet data
+  // localStorage is secondary fallback for same-device detection
+
   // ── LOCAL QUOTE STORE — persists across sessions via localStorage ──────
   const LOCAL_STORE_KEY = 'vanguard_quote_log';
 
@@ -608,21 +612,19 @@
   }
 
   async function fetchRecentQuotes() {
-    // Primary: read from localStorage — works immediately, no CORS issues
-    const local = getLocalQuotes();
-    if (local.length > 0) {
-      console.log('Duplicate check using local store:', local.length, 'quotes');
-      return local;
-    }
-    // Fallback: try JSONP from Apps Script
-    return new Promise((resolve) => {
+    // Primary: JSONP from Apps Script — reads LIVE sheet data (cross-device)
+    // This works because the browser makes the request, not a server
+    const jsonpQuotes = await new Promise((resolve) => {
       const oldScript = document.getElementById('__gsCallback');
       if (oldScript) oldScript.remove();
-      const timer = setTimeout(() => { resolve([]); }, 4000);
+      const timer = setTimeout(() => {
+        console.warn('JSONP timed out — falling back to localStorage');
+        resolve(null); // null = timed out
+      }, 5000);
       window.__gsResolve = function(data) {
         clearTimeout(timer);
         const quotes = data.quotes || [];
-        // Cache into localStorage for future checks
+        // Sync into localStorage as backup
         if (quotes.length > 0) {
           localStorage.setItem(LOCAL_STORE_KEY, JSON.stringify(quotes));
         }
@@ -631,9 +633,19 @@
       const script = document.createElement('script');
       script.id = '__gsCallback';
       script.src = APPS_SCRIPT_URL + '?callback=__gsResolve&bust=' + Date.now();
-      script.onerror = () => { clearTimeout(timer); resolve([]); };
+      script.onerror = () => { clearTimeout(timer); resolve(null); };
       document.body.appendChild(script);
     });
+
+    if (jsonpQuotes !== null) {
+      console.log('Duplicate check via live sheet:', jsonpQuotes.length, 'quotes');
+      return jsonpQuotes;
+    }
+
+    // Fallback: localStorage (same device only)
+    const local = getLocalQuotes();
+    console.log('Duplicate check via localStorage:', local.length, 'quotes');
+    return local;
   }
 
     // ── SHEET WRITE via no-cors (fire-and-forget) + local store ────────
@@ -746,6 +758,8 @@
       if (match) {
         btn.disabled = false;
         btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
+        // Log duplicate to sheet and send email alert
+        logDuplicateToSheet(sigName, pClass, pSum, match.quoteRef, pInv);
         sendDuplicateAlert(sigName, pClass, pSum, match.quoteRef, pInv);
         showDupModal(match.quoteRef, sigName);
         return;
