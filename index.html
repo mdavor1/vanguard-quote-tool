@@ -268,20 +268,23 @@
     .preview-panel { padding: 1rem; }
 
     /* Invoice card — full width, smaller text */
-    .inv-card { max-width: 100%; font-size: 11px; }
-    .inv-header { padding: 1rem; gap: 0.75rem; }
-    .inv-logo-box { width: 90px; }
-    .inv-header-text { padding-right: 100px; }
-    .inv-co-name { font-size: 12px; }
-    .inv-co-addr { font-size: 10px; }
-    .inv-body { padding: 0.5rem 1rem 0; }
-    .inv-row { grid-template-columns: 130px 1fr; font-size: 11px; }
-    .inv-payment-text { padding: 0.5rem 1rem; font-size: 11px; }
-    .inv-bank { padding: 0 1rem; }
-    .inv-bank-row { grid-template-columns: 130px 1fr; font-size: 10.5px; }
-    .inv-footer { padding: 1rem; }
-    .sig-block { min-width: 160px; }
-    .sig-stamp { width: 75px; height: 75px; }
+    .inv-card { max-width: 100%; font-size: 10.5px; }
+    .inv-header { padding: 1rem; }
+    .inv-logo-box { width: 100px; top: 0.75rem; right: 0.75rem; }
+    .inv-header-text { padding-right: 110px; }
+    .inv-co-name { font-size: 11px; }
+    .inv-co-addr { font-size: 9.5px; }
+    .inv-body { padding: 0.5rem 0.75rem 0; }
+    .inv-table-main td { padding: 4px 6px; font-size: 10.5px; }
+    .inv-prem-table th, .inv-prem-table td { padding: 5px 6px; font-size: 10.5px; }
+    .inv-payment-text { padding: 0.5rem 0.75rem; font-size: 10.5px; }
+    .inv-bank-wrap { margin: 0 0.75rem 0.5rem; grid-template-columns: 1fr; }
+    .inv-bank-col:first-child { border-right: none; border-bottom: 1px solid #bbb; }
+    .inv-bank-row { grid-template-columns: 100px 1fr; }
+    .inv-divider { margin: 0.5rem 0.75rem 0; }
+    .inv-footer { padding: 0.75rem; }
+    .sig-stamp { width: 70px; height: 70px; }
+    .sig-stamp-wrap { width: 70px; height: 70px; }
 
     /* Modal — full width on mobile */
     .modal-box { padding: 1.25rem; }
@@ -354,51 +357,70 @@
       <label>Class of insurance (non-motor)</label>
       <select id="p-class" onchange="updateQuoteRef()">
         <option value="">— Select class —</option>
-        <optgroup label="Property">
-          <option>Fire &amp; Perils</option>
-          <option>Burglary &amp; Theft</option>
-          <option>All Risks</option>
-          <option>Consequential Loss / Business Interruption</option>
+        <optgroup label="Fire Policies">
+          <option>Assets All Risk Policy</option>
+          <option>Combined Fire &amp; Theft</option>
+          <option>Industrial Fire</option>
+          <option>Commercial Fire</option>
         </optgroup>
-        <optgroup label="Bonds &amp; Liability">
-          <option>Performance Bond</option>
-          <option>Bid / Tender Bond</option>
-          <option>Advance Payment Bond</option>
-          <option>Customs Bond</option>
-          <option>Public Liability</option>
-          <option>Employers Liability / Workmen's Compensation</option>
-          <option>Professional Indemnity</option>
-          <option>Directors &amp; Officers Liability</option>
-        </optgroup>
-        <optgroup label="Marine">
-          <option>Marine Cargo</option>
-          <option>Marine Hull</option>
-        </optgroup>
-        <optgroup label="Engineering">
-          <option>Contractor's All Risks (CAR)</option>
-          <option>Erection All Risks (EAR)</option>
-          <option>Machinery Breakdown</option>
-          <option>Electronic Equipment Insurance</option>
-        </optgroup>
-        <optgroup label="Life &amp; Health">
-          <option>Life — Term Assurance</option>
-          <option>Life — Endowment</option>
-          <option>Group Life</option>
-          <option>Health / Medical</option>
-          <option>Personal Accident</option>
-        </optgroup>
-        <optgroup label="Specialty">
-          <option>Travel Insurance</option>
+        <optgroup label="General Accident">
+          <option>Group Personal Accident</option>
+          <option>Burglary (Business Premises)</option>
           <option>Fidelity Guarantee</option>
           <option>Money Insurance</option>
-          <option>Goods in Transit</option>
-          <option>Agricultural Insurance</option>
-          <option>Other (non-motor)</option>
+          <option>Public Liability</option>
+          <option>Products Liability</option>
+          <option>Professional Indemnity</option>
+          <option>Goods-in-Transit</option>
+          <option>Cash-in-Transit</option>
+          <option>Bankers Indemnity</option>
+          <option>Plate Glass</option>
+          <option>Directors Liability</option>
+        </optgroup>
+        <optgroup label="Engineering">
+          <option>Boiler &amp; Pressure Plant Insurance</option>
+          <option>Electronic Equipment Insurance</option>
+          <option>LOP following Machinery Breakdown/BPI/EEQ</option>
+          <option>Thermal Risks and Machinery Loss of Profit</option>
+          <option>Construction Policies</option>
+          <option>Contractors All Risk Insurance</option>
+          <option>Erection All Risk Insurance</option>
+          <option>Civil Engineering Completed Risk</option>
+        </optgroup>
+        <optgroup label="Bonds">
+          <option>Bid Bond / Tender Security</option>
+          <option>Performance Bond</option>
+          <option>Advance Payment / Mobilization Bond</option>
+          <option>Retention Bond</option>
+          <option>Customs Bond</option>
+        </optgroup>
+        <optgroup label="Workmen Compensation">
+          <option>Workmen Compensation</option>
+        </optgroup>
+        <optgroup label="Marine">
+          <option>Marine Cargo General</option>
+          <option>Marine Cargo Exports</option>
+          <option>Marine Certificate Policies</option>
+          <option>Stevedores Legal Liability</option>
         </optgroup>
       </select>
     </div>
     <div class="field"><label>Sum insured (GHS)</label><input id="p-sum" type="text" placeholder="e.g. 10,500,000.00" oninput="fmtInput(this)" /></div>
-    <div class="field"><label>Premium (GHS)</label><input id="p-prem" type="text" placeholder="e.g. 89,250.00" oninput="fmtInput(this)" /></div>
+    <div class="field">
+      <label>Gross Premium (GHS) <span style="font-size:10px;color:#8a96a3;font-weight:400;">— enter base premium before tax</span></label>
+      <input id="p-prem" type="text" placeholder="e.g. 89,250.00" oninput="fmtInput(this); calcVAT()" />
+    </div>
+    <div id="vat-preview" style="display:none;background:#f4f6f8;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin-top:4px;font-size:12px;color:#1a2e4a;">
+      <div style="display:flex;justify-content:space-between;padding:2px 0;">
+        <span>Gross Premium</span><span id="vat-gross" style="font-weight:500;"></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:2px 0;color:#6b7d8f;">
+        <span>VAT (20%)</span><span id="vat-tax"></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0 2px;border-top:1px solid #e2e8f0;margin-top:4px;font-weight:700;">
+        <span>Premium Payable</span><span id="vat-total"></span>
+      </div>
+    </div>
     <div class="g2">
       <div class="field"><label>Policy start date</label><input id="p-start" type="date" /></div>
       <div class="field"><label>Policy end date</label><input id="p-end" type="date" /></div>
@@ -517,6 +539,40 @@
     return num.toLocaleString('en-GH', {minimumFractionDigits:2, maximumFractionDigits:2});
   }
 
+  // Classes exempt from VAT (Bonds only)
+  const BOND_CLASSES = [
+    'Bid Bond / Tender Security',
+    'Performance Bond',
+    'Advance Payment / Mobilization Bond',
+    'Retention Bond',
+    'Customs Bond'
+  ];
+
+  const VAT_RATE = 0.20;
+
+  function isBondClass(pClass) {
+    return BOND_CLASSES.includes(pClass);
+  }
+
+  function calcVAT() {
+    const pClass   = g('p-class');
+    const rawPrem  = parseFloat(String(g('p-prem')).replace(/,/g,'')) || 0;
+    const preview  = document.getElementById('vat-preview');
+
+    if (!rawPrem) { preview.style.display = 'none'; return; }
+
+    const isVatable = pClass && !isBondClass(pClass);
+    const vatAmt    = isVatable ? rawPrem * VAT_RATE : 0;
+    const total     = rawPrem + vatAmt;
+
+    document.getElementById('vat-gross').textContent = 'GHS ' + fmt(rawPrem);
+    document.getElementById('vat-tax').textContent   = isVatable
+      ? 'GHS ' + fmt(vatAmt)
+      : 'Exempt';
+    document.getElementById('vat-total').textContent = 'GHS ' + fmt(total);
+    preview.style.display = 'block';
+  }
+
   function fmtInput(el) {
     // Strip everything except digits and decimal point
     const raw = el.value.replace(/[^0-9.]/g, '');
@@ -598,6 +654,7 @@
     const ref = genQuoteRef(pClass);
     const field = document.getElementById('p-inv');
     if (ref) field.value = ref;
+    calcVAT(); // recalculate VAT when class changes
   }
 
   // ── SEND QUOTE BY EMAIL ──────────────────────────────────
@@ -876,6 +933,20 @@ www.vanguardassurance.com`
   }
 
   // ── MAIN: GENERATE QUOTE ─────────────────────────────────
+  function buildPremiumRows(pPrem, pClass) {
+    const rawPrem   = parseFloat(String(pPrem).replace(/,/g,'')) || 0;
+    if (!rawPrem) return '<div class="inv-row bold"><span class="inv-row-lbl">Premium:</span><span class="inv-row-val">—</span></div>';
+    const isVatable = pClass && !isBondClass(pClass);
+    const vatAmt    = isVatable ? rawPrem * VAT_RATE : 0;
+    const total     = rawPrem + vatAmt;
+    const vatLine   = isVatable
+      ? '<div class="inv-row"><span class="inv-row-lbl">VAT (20%):</span><span class="inv-row-val">GHS ' + fmt(vatAmt) + '</span></div>'
+      : '<div class="inv-row"><span class="inv-row-lbl">VAT:</span><span class="inv-row-val">Exempt (Bond)</span></div>';
+    return '<div class="inv-row"><span class="inv-row-lbl">Gross Premium:</span><span class="inv-row-val">GHS ' + fmt(rawPrem) + '</span></div>'
+      + vatLine
+      + '<div class="inv-row bold" style="border-top:1px solid #d0d9e4;padding-top:4px;margin-top:2px;"><span class="inv-row-lbl">Premium Payable:</span><span class="inv-row-val">GHS ' + fmt(total) + '</span></div>';
+  }
+
   async function generateQuote() {
     const btn = document.querySelector('.gen-btn');
     btn.disabled = true;
@@ -972,7 +1043,7 @@ www.vanguardassurance.com`
     const initials = coName.split(' ').filter(w => w.length > 2).slice(0,2).map(w=>w[0]).join('') || coName.slice(0,2).toUpperCase();
     const logoSrc  = LOGO_DATA_URL;
     const stampSrc = STAMP_DATA_URL;
-    const addrLines = [coAddr1, coAddr2, coTel ? 'Tel: '+coTel : '', coWeb ? 'Website: '+coWeb : ''].filter(Boolean);
+    const addrLines = [coTel ? 'Tel: '+coTel : '', coWeb ? 'Website: '+coWeb : ''].filter(Boolean);
 
     const bankHtml = bankRows.length > 0 ? `
       <div class="pay-grid">
@@ -985,64 +1056,129 @@ www.vanguardassurance.com`
 
     const period = (pStart && pEnd) ? `${fmtDate(pStart)} – ${fmtDate(pEnd)}` : (pStart ? `From ${fmtDate(pStart)}` : '');
 
-    document.getElementById('quote-output').innerHTML = `
-      <div class="inv-card" id="inv-card">
+    // ── Premium calculations
+    const rawPrem   = parseFloat(String(pPrem).replace(/,/g,'')) || 0;
+    const isVatable = pClass && !isBondClass(pClass);
+    const vatAmt    = isVatable ? rawPrem * VAT_RATE : 0;
+    const totalPrem = rawPrem + vatAmt;
 
-        <!-- HEADER: logo left, company centre -->
-        <div class="inv-header">
-          <div class="inv-logo-box">
-            ${logoSrc
-              ? `<img src="${logoSrc}" alt="Vanguard Assurance logo" />`
-              : `<div class="inv-logo-initials">${initials}</div>`}
-          </div>
-          <div class="inv-header-text">
-            <div class="inv-co-name">${coName}</div>
-            <div class="inv-co-addr">${addrLines.join('<br>')}</div>
-            <span class="inv-title-word">INVOICE</span>
-          </div>
-        </div>
+    // ── Styles (all inline for reliable PDF/print rendering)
+    const S = {
+      card:    'font-family:Arial,sans-serif;font-size:12px;color:#000;background:#fff;border:1px solid #bbb;max-width:700px;margin:0 auto;',
+      header:  'padding:1.25rem 1.5rem 0.75rem;position:relative;border-bottom:3px solid #1a2e4a;',
+      logoBox: 'position:absolute;top:.75rem;right:1.25rem;width:200px;',
+      coName:  'font-size:13.5px;font-weight:700;color:#1a2e4a;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;',
+      coAddr:  'font-size:10.5px;color:#333;line-height:1.55;',
+      title:   'display:inline-block;margin-top:.6rem;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#c0392b;border-bottom:2px solid #c0392b;padding-bottom:2px;',
+      // Policy table
+      polTable:'width:100%;border-collapse:collapse;margin:0;',
+      polLbl:  'background:#eef2f7;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#1a2e4a;padding:7px 12px;border:1px solid #c0ccd8;width:38%;',
+      polVal:  'padding:7px 12px;border:1px solid #c0ccd8;font-size:12px;',
+      polValBold:'padding:7px 12px;border:1px solid #c0ccd8;font-size:12.5px;font-weight:700;',
+      // Premium table
+      premWrap:'padding:.6rem 1.5rem 0;',
+      premTbl: 'width:100%;border-collapse:collapse;',
+      premTh:  'background:#1a2e4a;color:#fff;padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:.04em;border:1px solid #1a2e4a;',
+      premTd:  'padding:7px 12px;border:1px solid #c0ccd8;font-size:12px;',
+      premTdR: 'padding:7px 12px;border:1px solid #c0ccd8;font-size:12px;text-align:right;font-weight:500;',
+      premFoot:'background:#eef2f7;font-weight:700;font-size:13px;padding:8px 12px;border:1px solid #1a2e4a;border-top:2px solid #1a2e4a;',
+      premFootR:'background:#eef2f7;font-weight:700;font-size:13px;padding:8px 12px;border:1px solid #1a2e4a;border-top:2px solid #1a2e4a;text-align:right;',
+      // Bank table
+      bankWrap:'margin:.75rem 1.5rem;',
+      bankTh:  'background:#eef2f7;font-weight:700;font-size:11px;color:#1a2e4a;padding:6px 10px;border:1px solid #c0ccd8;white-space:nowrap;',
+      bankTd:  'padding:6px 10px;border:1px solid #c0ccd8;font-size:11.5px;',
+      // Footer
+      divider: 'border:none;border-top:2px solid #1a2e4a;margin:.75rem 1.5rem 0;',
+      footer:  'padding:.75rem 1.5rem 1.5rem;text-align:center;',
+      sigName: 'font-size:12.5px;font-weight:700;color:#000;margin-top:4px;',
+      sigRole: 'font-size:12px;color:#333;',
+      stamp:   'width:90px;height:90px;border-radius:50%;border:2px dashed #bbb;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:#aaa;font-style:italic;background:#fafafa;overflow:hidden;margin:6px 0;',
+    };
 
-        <!-- POLICY DETAILS: label / value rows -->
-        <div class="inv-body">
-          <div class="inv-row"><span class="inv-row-lbl">Invoice Number:</span><span class="inv-row-val">${pInv}</span></div>
-          <div class="inv-row"><span class="inv-row-lbl">Date:</span><span class="inv-row-val">${today}</span></div>
-          <div class="inv-row"><span class="inv-row-lbl">Insured:</span><span class="inv-row-val">${clName}</span></div>
-          <div class="inv-row"><span class="inv-row-lbl">Cover:</span><span class="inv-row-val">${pClass || '—'}</span></div>
-          ${period ? `<div class="inv-row"><span class="inv-row-lbl">Period of Cover:</span><span class="inv-row-val">${period}</span></div>` : ''}
-          <div class="inv-row bold"><span class="inv-row-lbl">Sum Insured:</span><span class="inv-row-val">GHS ${fmt(pSum) || '—'}</span></div>
-          <div class="inv-row bold"><span class="inv-row-lbl">Premium:</span><span class="inv-row-val">GHS ${fmt(pPrem) || '—'}</span></div>
-        </div>
+    // ── Bank rows — split into 2 side-by-side columns
+    const half       = Math.ceil(bankRows.length / 2);
+    const bankCol1   = bankRows.slice(0, half);
+    const bankCol2   = bankRows.slice(half);
+    const maxBR      = Math.max(bankCol1.length, bankCol2.length);
+    const bankTblRows = Array.from({length: maxBR}, (_,i) => {
+      const b1 = bankCol1[i]||{l:'',v:''};
+      const b2 = bankCol2[i]||{l:'',v:''};
+      return '<tr>'
+        + '<td style="' + S.bankTh + '">' + b1.l + '</td>'
+        + '<td style="' + S.bankTd + '">' + b1.v + '</td>'
+        + '<td style="' + S.bankTh + '">' + b2.l + '</td>'
+        + '<td style="' + S.bankTd + '">' + b2.v + '</td>'
+        + '</tr>';
+    }).join('');
 
-        <!-- PAYMENT INSTRUCTION PARAGRAPH -->
-        ${payIntro ? `<div class="inv-payment-text">${payIntro}</div>` : ''}
+    document.getElementById('quote-output').innerHTML =
+      '<div id="inv-card" style="' + S.card + '">'
 
-        <!-- BANK DETAIL ROWS -->
-        <div class="inv-bank">
-          ${bankRows.map(r => `
-            <div class="inv-bank-row">
-              <span class="inv-bank-lbl">${r.l}:</span>
-              <span class="inv-bank-val">${r.v}</span>
-            </div>`).join('')}
-        </div>
+      // HEADER
+      + '<div style="' + S.header + '">'
+      +   '<div style="' + S.logoBox + '">'
+      +     (logoSrc ? '<img src="' + logoSrc + '" style="width:100%;height:auto;object-fit:contain;" alt="logo"/>'
+                     : '<div style="font-weight:700;font-size:18px;color:#1a2e4a;">' + initials + '</div>')
+      +   '</div>'
+      +   '<div style="text-align:center;padding-right:215px;">'
+      +     '<div style="' + S.coName + '">' + coName + '</div>'
+      +     '<div style="' + S.coAddr + '">' + addrLines.join('<br>') + '</div>'
+      +     '<div style="' + S.title + '">INSURANCE PREMIUM QUOTATION</div>'
+      +   '</div>'
+      + '</div>'
 
-        ${tNotes ? `<div class="inv-payment-text" style="font-style:italic;color:#444;">${tNotes}</div>` : ''}
+      // POLICY DETAILS TABLE
+      + '<div style="padding:.75rem 1.5rem 0;">'
+      +   '<table style="' + S.polTable + '">'
+      +     '<tr><td style="' + S.polLbl + '">Invoice Number</td><td style="' + S.polVal + '">' + pInv + '</td></tr>'
+      +     '<tr><td style="' + S.polLbl + '">Date</td><td style="' + S.polVal + '">' + today + '</td></tr>'
+      +     '<tr><td style="' + S.polLbl + '">Insured</td><td style="' + S.polValBold + '">' + clName + '</td></tr>'
+      +     '<tr><td style="' + S.polLbl + '">Policy Type</td><td style="' + S.polVal + '">' + (pClass||'—') + '</td></tr>'
+      +     (period ? '<tr><td style="' + S.polLbl + '">Period of Cover</td><td style="' + S.polVal + '">' + period + '</td></tr>' : '')
+      +     '<tr><td style="' + S.polLbl + '">Sum Insured</td><td style="' + S.polValBold + '">GHS ' + (fmt(pSum)||'—') + '</td></tr>'
+      +   '</table>'
+      + '</div>'
 
-        <!-- FOOTER: signatory right-aligned -->
-        <div class="inv-footer">
-          <div class="sig-block">
-            <div class="sig-behalf">For and On Behalf of,<br>${coName}.</div>
-            <div class="sig-stamp-wrap">
-              <div class="sig-stamp${stampSrc ? ' has-image' : ''}">
-                ${stampSrc ? `<img src="${stampSrc}" alt="Company stamp" />` : '<span>Stamp</span>'}
-              </div>
-            </div>
-            <div class="sig-name">${sigName || '[Quote By]'},</div>
-            <div class="sig-role">${sigRole || '[Role / Title]'}.</div>
-          </div>
-        </div>
+      // PREMIUM BREAKDOWN TABLE
+      + '<div style="' + S.premWrap + '">'
+      +   '<table style="' + S.premTbl + '">'
+      +     '<thead><tr>'
+      +       '<th style="' + S.premTh + ';width:65%;text-align:left;">Description</th>'
+      +       '<th style="' + S.premTh + ';text-align:right;">Amount (GHS)</th>'
+      +     '</tr></thead>'
+      +     '<tbody>'
+      +       '<tr><td style="' + S.premTd + '">Gross Premium</td><td style="' + S.premTdR + '">' + fmt(rawPrem) + '</td></tr>'
+      +       '<tr><td style="' + S.premTd + '">' + (isVatable ? 'VAT (20%)' : 'VAT') + '</td><td style="' + S.premTdR + '">' + (isVatable ? fmt(vatAmt) : 'Exempt') + '</td></tr>'
+      +       '<tr><td style="' + S.premFoot + '">PREMIUM PAYABLE</td><td style="' + S.premFootR + '">GHS ' + fmt(totalPrem) + '</td></tr>'
+      +     '</tbody>'
+      +   '</table>'
+      + '</div>'
 
-      </div>
-    `;
+      // PAYMENT INSTRUCTION
+      + (payIntro ? '<div style="padding:.75rem 1.5rem .4rem;font-size:11.5px;line-height:1.65;color:#000;">' + payIntro + '</div>' : '')
+
+      // BANK DETAILS — 2 columns
+      + (bankTblRows ? '<div style="' + S.bankWrap + '"><table style="width:100%;border-collapse:collapse;">' + bankTblRows + '</table></div>' : '')
+
+      // NOTES
+      + (tNotes ? '<div style="padding:.5rem 1.5rem;font-size:11px;color:#555;font-style:italic;">' + tNotes + '</div>' : '')
+
+      // DIVIDER
+      + '<hr style="' + S.divider + '"/>'
+
+      // FOOTER — centred signatory
+      + '<div style="' + S.footer + '">'
+      +   '<div style="display:inline-block;text-align:center;">'
+      +     '<div style="font-size:12px;color:#000;margin-bottom:4px;">For and On Behalf of,<br><strong>' + coName + '</strong></div>'
+      +     (stampSrc
+          ? '<div style="' + S.stamp + ' border:none;background:transparent;"><img src="' + stampSrc + '" style="width:100%;height:100%;border-radius:50%;object-fit:contain;" alt="stamp"/></div>'
+          : '<div style="' + S.stamp + '"><span>Stamp</span></div>')
+      +     '<div style="' + S.sigName + '">' + (sigName||'[Quote By]') + '</div>'
+      +     '<div style="' + S.sigRole + '">' + (sigRole||'[Role / Title]') + '</div>'
+      +   '</div>'
+      + '</div>'
+
+      + '</div>';
     } catch(err) {
       console.error('generateQuote error:', err);
       btn.disabled = false;
