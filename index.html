@@ -74,7 +74,7 @@
   .prt-btn:hover { background: #d0dff0; }
 
   /* PREVIEW */
-  .preview-panel { padding: 1.5rem 2rem; overflow-y: auto; }
+  .preview-panel { padding: 1.5rem 2rem; overflow-y: auto; overflow-x: hidden; }
   .prev-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.1rem; }
   .prev-topbar h2 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); }
   .copy-btn { font-size: 11px; color: var(--muted); background: var(--surface); border: var(--rule); border-radius: var(--r); padding: 5px 11px; cursor: pointer; display: flex; align-items: center; gap: 5px; font-family: 'Inter', sans-serif; font-weight: 500; transition: background 0.12s; }
@@ -330,31 +330,34 @@
   <div class="form-panel">
 
     <input type="hidden" id="co-name"   value="Vanguard Assurance Company Limited" />
-    <input type="hidden" id="co-addr1"  value="No. 21 Independence Avenue" />
-    <input type="hidden" id="co-addr2"  value="P.O. Box 1868, Accra, Ghana" />
+    <input type="hidden" id="co-addr1"  value="Vanguard House, Independence Avenue, Accra" />
+    <input type="hidden" id="co-addr2"  value="P.O. Box GP 1888, Accra &bull; Ghana" />
     <input type="hidden" id="co-tel"    value="+233 0302 666 485-7/782 921-2" />
     <input type="hidden" id="co-web"    value="www.vanguardassurance.com" />
     <input type="hidden" id="co-branch" value="Corporate Distribution" />
 
+    <!-- ① SIGNATORY -->
     <div class="sec-hdr"><i class="ti ti-user-edit"></i> Signatory</div>
     <div class="g2">
       <div class="field"><label>Quoted by</label><input id="sig-name" placeholder="e.g. Enoch Obeng" /></div>
       <div class="field"><label>Role / title</label><input id="sig-role" placeholder="e.g. Corporate Distribution" /></div>
     </div>
 
+    <!-- ② CLIENT -->
     <div class="sec-hdr"><i class="ti ti-user"></i> Client / insured</div>
     <div class="field"><label>Insured name</label><input id="cl-name" placeholder="Full legal name or company name" /></div>
 
+    <!-- ③ POLICY DETAILS -->
     <div class="sec-hdr"><i class="ti ti-file-text"></i> Policy details</div>
     <div class="g2">
       <div class="field">
-        <label>Invoice / quote number <span style="font-size:10px;color:#8a96a3;font-weight:400;">(auto-generated)</span></label>
-        <input id="p-inv" readonly style="background:#f4f6f8;color:#5a6a7a;cursor:default;" placeholder="Select a class to generate" />
+        <label>Invoice no. <span style="font-size:10px;color:#8a96a3;font-weight:400;">(auto)</span></label>
+        <input id="p-inv" readonly style="background:#f4f6f8;color:#5a6a7a;cursor:default;" placeholder="Select class to generate" />
       </div>
       <div class="field"><label>Date</label><input id="p-date" type="date" /></div>
     </div>
     <div class="field">
-      <label>Class of insurance (non-motor)</label>
+      <label>Class of insurance</label>
       <select id="p-class" onchange="updateQuoteRef()">
         <option value="">— Select class —</option>
         <optgroup label="Fire Policies">
@@ -405,9 +408,60 @@
         </optgroup>
       </select>
     </div>
-    <div class="field"><label>Sum insured (GHS)</label><input id="p-sum" type="text" placeholder="e.g. 10,500,000.00" oninput="fmtInput(this)" /></div>
+    <div class="g2">
+      <div class="field"><label>Policy start date</label><input id="p-start" type="date" /></div>
+      <div class="field"><label>Policy end date</label><input id="p-end" type="date" /></div>
+    </div>
+    <div class="g2">
+      <div class="field"><label>Payment due</label>
+        <select id="p-paydue">
+          <option value="On receipt">On receipt</option>
+          <option value="30 days">30 days</option>
+          <option value="60 days">60 days</option>
+          <option value="90 days">90 days</option>
+        </select>
+      </div>
+      <div class="field"><label>Excess / Deductible</label>
+        <input id="p-excess" type="text" placeholder="e.g. 10% each and every loss, min. GHS 500" />
+      </div>
+    </div>
+
+    <!-- ④ SUBJECT MATTER & SUM INSURED -->
+    <div class="sec-hdr"><i class="ti ti-building"></i> Subject matter &amp; sum insured</div>
     <div class="field">
-      <label>Gross Premium (GHS) <span style="font-size:10px;color:#8a96a3;font-weight:400;">— enter base premium before tax</span></label>
+      <label>Subject matter insured</label>
+      <input id="p-risk" placeholder="e.g. Office building and contents, Suzuki Grand Vitara GR-1234" />
+    </div>
+    <div class="field">
+      <label>Total sum insured (GHS)</label>
+      <input id="p-sum" type="text" placeholder="e.g. 10,500,000.00" oninput="fmtInput(this)" />
+    </div>
+
+    <!-- TSI / Subject Matter Breakdown — available for all classes -->
+    <div id="tsi-breakdown-section">
+      <div class="field">
+        <label>Sum insured breakdown <span style="font-size:10px;color:#2E75B6;font-weight:400;">— optional, add individual items</span></label>
+        <select onchange="if(this.value){addTSIRow(this.value,'');this.value=''}" style="font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;width:100%;font-family:Inter,sans-serif;">
+          <option value="">+ Add breakdown item...</option>
+          <option>Buildings</option>
+          <option>Contents</option>
+          <option>Plant &amp; Equipment</option>
+          <option>Stock in Trade</option>
+          <option>Machinery</option>
+          <option>Electronic Equipment</option>
+          <option>Contract Works</option>
+          <option>Third Party Liability</option>
+          <option>Loss of Profits</option>
+          <option>Other (specify)</option>
+        </select>
+      </div>
+      <div id="tsi-rows-container"></div>
+    </div>
+
+    <!-- ⑤ PREMIUM -->
+    <div class="sec-hdr"><i class="ti ti-receipt-2"></i> Premium</div>
+    <div class="field">
+      <label>Gross premium (GHS)</label>
       <input id="p-prem" type="text" placeholder="e.g. 89,250.00" oninput="fmtInput(this); calcVAT()" />
     </div>
     <div id="vat-preview" style="display:none;background:#f4f6f8;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin-top:4px;font-size:12px;color:#1a2e4a;">
@@ -421,32 +475,39 @@
         <span>Premium Payable</span><span id="vat-total"></span>
       </div>
     </div>
-    <div class="g2">
-      <div class="field"><label>Policy start date</label><input id="p-start" type="date" /></div>
-      <div class="field"><label>Policy end date</label><input id="p-end" type="date" /></div>
+
+    <!-- Manual extra premium items -->
+    <div id="extra-prem-container" style="margin-top:6px;"></div>
+    <div style="display:flex;gap:6px;margin-top:4px;align-items:center;">
+      <select id="extra-prem-select" style="flex:1;font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;">
+        <option value="">+ Add premium item...</option>
+        <option value="1% Fire Levy on Gross Premium">1% Fire Levy on Gross Premium</option>
+        <option value="Fire Certificate Charge (GHS 15)">Fire Certificate Charge (GHS 15)</option>
+        <option value="Additional Premium for Extensions">Additional Premium for Extensions</option>
+        <option value="Other">Other (type description)</option>
+      </select>
+      <button class="add-btn" onclick="addExtraPremFromSelect()" style="margin:0;white-space:nowrap;flex-shrink:0;"><i class="ti ti-plus"></i> Add</button>
     </div>
 
+    <!-- ⑥ CONDITIONS / NOTES — after premium -->
+    <div class="sec-hdr"><i class="ti ti-notes"></i> Conditions / notes</div>
+    <div class="field">
+      <textarea id="t-notes" rows="4" placeholder="Add one condition per line e.g.&#10;Excess — 10% each and every loss&#10;Subject to satisfactory inspection&#10;Cover commences upon receipt of premium"></textarea>
+      <div style="font-size:10px;color:#8a96a3;margin-top:3px;">Each line will appear as a numbered condition on the quote</div>
+    </div>
+
+    <!-- ⑦ BANK DETAILS -->
     <div class="sec-hdr"><i class="ti ti-building-bank"></i> Bank / payment details</div>
-    <div class="field"><label>Payment instruction text</label>
+    <div class="field">
       <textarea id="pay-intro" rows="2">Kindly use the details below for bank payments or issue a cheque in the name of Vanguard Assurance Co. Ltd to enable us issue policy document.</textarea>
     </div>
     <div id="bank-container"></div>
     <button class="add-btn" onclick="addBankField()"><i class="ti ti-plus"></i> Add bank detail row</button>
 
-    <div class="sec-hdr"><i class="ti ti-notes"></i> Conditions / notes</div>
-    <div class="field"><textarea id="t-notes" rows="3" placeholder="e.g. Subject to satisfactory inspection. Cover commences upon receipt of premium."></textarea></div>
-
-    <button class="gen-btn" onclick="generateQuote()"><i class="ti ti-eye"></i> Generate quote</button>
-    <div class="sec-hdr" style="margin-top:1rem;"><i class="ti ti-send"></i> Send quote by email</div>
-    <div class="field">
-      <label>Recipient email address</label>
-      <input id="send-email" type="email" placeholder="client@email.com" />
-    </div>
-    <button class="prt-btn" onclick="sendQuoteEmail()" id="send-btn">
-      <i class="ti ti-mail-forward"></i> Send quote to client
-    </button>
-    <button class="prt-btn" onclick="printQuote()" style="margin-top:6px;background:none;color:var(--muted);border:1px solid var(--border);">
-      <i class="ti ti-printer"></i> Print / Save as PDF
+    <!-- ⑧ ACTIONS — Download only -->
+    <button class="gen-btn" onclick="generateQuote()" style="margin-top:1.25rem;"><i class="ti ti-eye"></i> Generate quote</button>
+    <button class="prt-btn" onclick="downloadQuote()" id="dl-btn" style="margin-top:8px;background:var(--navy);color:#fff;border:none;">
+      <i class="ti ti-download"></i> Download quote (PDF)
     </button>
 
   </div>
@@ -497,6 +558,103 @@
   const LOGO_DATA_URL = 'data:image/jpeg;base64,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';
   const STAMP_DATA_URL = '';
   let bankCount = 0;
+
+  // ── LOCAL STORE ────────────────────────────────────────────────────────
+  const LOCAL_STORE_KEY = 'vanguard_quote_log';
+  function saveQuoteLocally(q) {
+    try {
+      const existing = JSON.parse(localStorage.getItem(LOCAL_STORE_KEY)||'[]');
+      existing.push(q);
+      localStorage.setItem(LOCAL_STORE_KEY, JSON.stringify(existing.slice(-200)));
+    } catch(e) { console.warn('localStorage save failed:', e); }
+  }
+  function getLocalQuotes() {
+    try { return JSON.parse(localStorage.getItem(LOCAL_STORE_KEY)||'[]'); }
+    catch(e) { return []; }
+  }
+
+  // ── FETCH RECENT QUOTES (JSONP primary, localStorage fallback) ──────────
+  async function fetchRecentQuotes() {
+    const jsonpQuotes = await new Promise((resolve) => {
+      const old = document.getElementById('__gsCallback');
+      if (old) old.remove();
+      const timer = setTimeout(() => { console.warn('JSONP timeout — using localStorage'); resolve(null); }, 5000);
+      window.__gsResolve = function(data) {
+        clearTimeout(timer);
+        const quotes = data.quotes || [];
+        if (quotes.length > 0) localStorage.setItem(LOCAL_STORE_KEY, JSON.stringify(quotes));
+        resolve(quotes);
+      };
+      const script = document.createElement('script');
+      script.id = '__gsCallback';
+      script.src = APPS_SCRIPT_URL + '?callback=__gsResolve&bust=' + Date.now();
+      script.onerror = () => { clearTimeout(timer); resolve(null); };
+      document.body.appendChild(script);
+    });
+    if (jsonpQuotes !== null) return jsonpQuotes;
+    return getLocalQuotes();
+  }
+
+  // ── LOG QUOTE TO SHEET ─────────────────────────────────────────────────
+  async function logQuoteToSheet(quoteData) {
+    saveQuoteLocally({
+      quoteRef:    quoteData.quoteRef,
+      date:        quoteData.date || new Date().toISOString(),
+      officer:     quoteData.officer,
+      client:      quoteData.client,
+      policyClass: quoteData.policyClass,
+      sumInsured:  String(quoteData.sumInsured).replace(/,/g,''),
+      premium:     String(quoteData.premium).replace(/,/g,''),
+    });
+    if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL') return;
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ quote: quoteData })
+      });
+    } catch(e) { console.warn('Sheet write failed:', e); }
+  }
+
+  // ── LOG DUPLICATE ──────────────────────────────────────────────────────
+  async function logDuplicateToSheet(officerName, pClass, pSum, existingRef, attemptedRef) {
+    try {
+      const key = 'vanguard_duplicate_log';
+      const existing = JSON.parse(localStorage.getItem(key)||'[]');
+      existing.push({ conflictId:'CF-'+Date.now(), date:new Date().toISOString(), officer:officerName, policyClass:pClass, sumInsured:String(pSum).replace(/,/g,''), existingRef, attemptedRef, action:'Blocked by system' });
+      localStorage.setItem(key, JSON.stringify(existing.slice(-200)));
+    } catch(e) { console.warn('localStorage dup log failed:', e); }
+    if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL') return;
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ type:'duplicate', duplicate:{ conflictId:'CF-'+Date.now(), date:new Date().toISOString(), officer:officerName||'', policyClass:pClass||'', sumInsured:String(pSum).replace(/,/g,''), existingRef:existingRef||'', attemptedRef:attemptedRef||'', alertSentTo:'mdavor@vanguardassurance.com', action:'Blocked by system' }})
+      });
+    } catch(e) { console.warn('Duplicate sheet log failed:', e); }
+  }
+
+  // ── SEND DUPLICATE ALERT EMAIL ─────────────────────────────────────────
+  function sendDuplicateAlert(officerName, pClass, pSum, existingRef, newRef) {
+    if (typeof emailjs === 'undefined') return;
+    if (!EMAILJS_PUBLIC || EMAILJS_PUBLIC === 'YOUR_EMAILJS_PUBLIC_KEY') return;
+    try { emailjs.init({ publicKey: EMAILJS_PUBLIC, blockHeadless: false }); } catch(ex) { emailjs.init(EMAILJS_PUBLIC); }
+    emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+      to_email: ALERT_EMAIL, officer_name: officerName||'Unknown officer',
+      policy_class: pClass, sum_insured: pSum,
+      existing_ref: existingRef, attempted_ref: newRef,
+      attempt_time: new Date().toLocaleString('en-GB'),
+    }).catch(err => console.warn('EmailJS error:', err));
+  }
+
+  // ── SHOW / CLOSE MODAL ─────────────────────────────────────────────────
+  function showDupModal(matchRef, officerName) {
+    document.getElementById('modal-body').textContent = 'A matching quote for the same policy class and sum insured was already generated within the last 7 days.';
+    document.getElementById('modal-ref').textContent  = 'Existing quote reference: ' + matchRef;
+    document.getElementById('modal-note').textContent = 'An alert has been sent to the compliance officer. Please use the existing reference.';
+    document.getElementById('dup-modal').classList.add('active');
+  }
+  function closeModal() { document.getElementById('dup-modal').classList.remove('active'); }
 
   // ── BANK FIELD HELPERS ──────────────────────────────────
   function addBankField(label, val) {
@@ -555,6 +713,88 @@
     return BOND_CLASSES.includes(pClass);
   }
 
+  // ── TSI BREAKDOWN ──────────────────────────────────────────────────────
+  let tsiCount = 0;
+  function addTSIRow(label, val) {
+    tsiCount++;
+    const id = tsiCount;
+    const wrap = document.createElement('div');
+    wrap.id = 'tsi-' + id;
+    wrap.style.cssText = 'background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;';
+    wrap.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">'
+      + '<span style="font-size:11px;font-weight:600;color:#1a2e4a;">Item ' + id + '</span>'
+      + '<button onclick="document.getElementById(\'tsi-' + id + '\').remove()" style="background:none;border:none;color:#c53030;cursor:pointer;font-size:14px;padding:0;line-height:1;">✕</button>'
+      + '</div>'
+      + '<input id="tsi-l-' + id + '" placeholder="Description e.g. Buildings, Contents, Plant & Equipment" value="' + (label||'') + '" style="width:100%;font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;margin-bottom:5px;box-sizing:border-box;">'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
+      + '<div><label style="font-size:10px;color:#6b7d8f;display:block;margin-bottom:2px;font-weight:500;">Sum Insured (GHS)</label>'
+      + '<input id="tsi-v-' + id + '" placeholder="e.g. 5,000,000.00" value="' + (val||'') + '" style="width:100%;font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;box-sizing:border-box;" oninput="fmtInput(this)"></div>'
+      + '<div><label style="font-size:10px;color:#6b7d8f;display:block;margin-bottom:2px;font-weight:500;">Premium (GHS)</label>'
+      + '<input id="tsi-p-' + id + '" placeholder="e.g. 12,500.00" value="" style="width:100%;font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;box-sizing:border-box;" oninput="fmtInput(this)"></div>'
+      + '</div>';
+    const container = document.getElementById('tsi-rows-container');
+    if (container) container.appendChild(wrap);
+  }
+  function getTSIRows() {
+    const rows = [];
+    for (let i = 1; i <= tsiCount; i++) {
+      const el = document.getElementById('tsi-' + i);
+      if (!el) continue;
+      const l = document.getElementById('tsi-l-' + i)?.value.trim();
+      const v = document.getElementById('tsi-v-' + i)?.value.trim();
+      const p = document.getElementById('tsi-p-' + i)?.value.trim();
+      if (l || v) rows.push({l: l||'', v: v||'', p: p||''});
+    }
+    return rows;
+  }
+
+  // Show/hide TSI based on class
+  const TSI_BREAKDOWN_CLASSES = [
+    'Assets All Risk Policy','Combined Fire & Theft','Industrial Fire','Commercial Fire',
+    'Boiler & Pressure Plant Insurance','Electronic Equipment Insurance',
+    'LOP following Machinery Breakdown/BPI/EEQ','Thermal Risks and Machinery Loss of Profit',
+    'Construction Policies','Contractors All Risk Insurance','Erection All Risk Insurance',
+    'Civil Engineering Completed Risk'
+  ];
+
+  // ── EXTRA PREMIUM ROWS ─────────────────────────────────────────────────
+  let xPremCount = 0;
+  function addExtraPremRow(label, val) {
+    xPremCount++;
+    const id = xPremCount;
+    const wrap = document.createElement('div');
+    wrap.id = 'xp-' + id;
+    wrap.style.cssText = 'display:flex;gap:6px;margin-bottom:5px;align-items:center;';
+    wrap.innerHTML =
+      '<input id="xp-l-' + id + '" placeholder="e.g. 1% Fire Levy" value="' + (label||'') + '" style="flex:1.5;font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;">' +
+      '<input id="xp-v-' + id + '" placeholder="Amount (GHS)" value="' + (val||'') + '" style="flex:1;font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;" oninput="fmtInput(this)">' +
+      '<button onclick="document.getElementById(\'xp-' + id + '\').remove()" style="background:none;border:1px solid var(--border);border-radius:8px;color:#c53030;cursor:pointer;padding:6px 8px;font-size:13px;">✕</button>';
+    const container = document.getElementById('extra-prem-container');
+    if (container) container.appendChild(wrap);
+  }
+  function addExtraPremFromSelect() {
+    const sel = document.getElementById('extra-prem-select');
+    if (!sel || !sel.value) return;
+    const label = sel.value === 'Other' ? '' : sel.value;
+    const val   = sel.value === 'Fire Certificate Charge (GHS 15)' ? '15.00' : '';
+    addExtraPremRow(label, val);
+    sel.value = '';
+  }
+
+  function getExtraPremRows() {
+    const rows = [];
+    for (let i = 1; i <= xPremCount; i++) {
+      const el = document.getElementById('xp-' + i);
+      if (!el) continue;
+      const l = document.getElementById('xp-l-' + i)?.value.trim();
+      const v = document.getElementById('xp-v-' + i)?.value.trim();
+      if (l || v) rows.push({l: l||'', v: parseFloat(String(v).replace(/,/g,''))||0});
+    }
+    return rows;
+  }
+
+  // ── FIRE LEVY AUTO-ADD ─────────────────────────────────────────────────
   function calcVAT() {
     const pClass   = g('p-class');
     const rawPrem  = parseFloat(String(g('p-prem')).replace(/,/g,'')) || 0;
@@ -655,7 +895,265 @@
     const ref = genQuoteRef(pClass);
     const field = document.getElementById('p-inv');
     if (ref) field.value = ref;
-    calcVAT(); // recalculate VAT when class changes
+    calcVAT();
+  }
+
+
+
+  // ── GENERATE QUOTE ───────────────────────────────────────────────────────
+  async function generateQuote() {
+    const btn = document.querySelector('.gen-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ti ti-loader ti-spin"></i> Checking...';
+    try {
+      const coName   = g('co-name')   || 'Vanguard Assurance Company Limited';
+      const coTel    = g('co-tel');
+      const coWeb    = g('co-web');
+      const coBranch = g('co-branch');
+      const sigName  = g('sig-name');
+      const sigRole  = g('sig-role');
+      const clName   = g('cl-name')   || '[Client Name]';
+      const pInv     = g('p-inv') || genQuoteRef(g('p-class')) || 'VA/' + new Date().getFullYear() + '/—';
+      const pDate    = g('p-date');
+      const pClass   = g('p-class')   || '';
+      const pSum     = g('p-sum')     || '';
+      const pPrem    = g('p-prem')    || '';
+      const pStart   = g('p-start');
+      const pEnd     = g('p-end');
+      const pRisk    = g('p-risk');
+      const pExcess  = g('p-excess');
+      const pPayDue  = g('p-paydue') || 'On receipt';
+      const payIntro = g('pay-intro');
+      const tNotes   = g('t-notes');
+
+      const coAddr1  = g('co-addr1');
+    const coAddr2  = g('co-addr2');
+    const addrLines = [coAddr1, coAddr2, coTel ? 'Tel: '+coTel+' • info@vanguardassurance.com' : ''].filter(Boolean);
+      const today     = pDate ? (d => new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'}))(pDate) : new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'});
+      const period    = (pStart && pEnd) ? new Date(pStart).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' to ' + new Date(pEnd).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
+      const initials  = coName.split(' ').filter(w=>w.length>2).slice(0,2).map(w=>w[0]).join('') || 'VA';
+      const logoSrc   = LOGO_DATA_URL;
+      const stampSrc  = STAMP_DATA_URL;
+
+      // ── Duplicate check
+      if (pClass && pSum) {
+        const recent = await fetchRecentQuotes();
+        const sevenDaysAgo = Date.now() - (7*24*60*60*1000);
+        const normSum = parseFloat(String(pSum).replace(/,/g,''));
+        console.log('Duplicate check — records:', recent.length, '| class:', pClass, '| sum:', normSum);
+        const match = recent.find(q => {
+          let qDate = 0;
+          if (q.date) {
+            const raw = String(q.date).trim();
+            let d = new Date(raw);
+            if (isNaN(d.getTime())) { const p=raw.split(/[\/\-]/); d=new Date(p[2]+'-'+p[1]+'-'+p[0]); }
+            qDate = isNaN(d.getTime()) ? Date.now() : d.getTime();
+          }
+          const qSum = parseFloat(String(q.sumInsured).replace(/,/g,''));
+          return q.policyClass.trim().toLowerCase() === pClass.trim().toLowerCase()
+            && !isNaN(qSum) && !isNaN(normSum) && Math.abs(qSum-normSum) < 1
+            && qDate >= sevenDaysAgo;
+        });
+        if (match) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
+          logDuplicateToSheet(sigName, pClass, pSum, match.quoteRef, pInv);
+          sendDuplicateAlert(sigName, pClass, pSum, match.quoteRef, pInv);
+          showDupModal(match.quoteRef, sigName);
+          return;
+        }
+      }
+
+      // ── Log quote
+      await logQuoteToSheet({ quoteRef:pInv, date:new Date().toISOString(), officer:sigName, client:clName, policyClass:pClass, sumInsured:String(pSum).replace(/,/g,''), premium:String(pPrem).replace(/,/g,''), branch:coBranch, clientEmail:'' });
+
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
+
+      // ── Premium calcs
+      const rawPrem    = parseFloat(String(pPrem).replace(/,/g,'')) || 0;
+      const isVatable  = pClass && !isBondClass(pClass);
+      const vatAmt     = isVatable ? rawPrem * VAT_RATE : 0;
+      const tsiRows    = getTSIRows();
+      const xPremRows  = getExtraPremRows();
+
+      let allExtraRows = [...xPremRows];
+
+      const extraTotal = allExtraRows.reduce((s,r)=>s+(r.v||0),0);
+      const totalPrem  = rawPrem + vatAmt + extraTotal;
+
+      // ── Notes as numbered list
+      const notesLines = tNotes ? tNotes.split('\n').map(l=>l.trim()).filter(Boolean) : [];
+
+      // ── Responsive styles
+      const isMobile = window.innerWidth <= 600;
+      const pad  = isMobile ? '5px 7px' : '7px 12px';
+      const padS = isMobile ? '4px 6px' : '8px 12px';
+      const fs   = isMobile ? '10px' : '12px';
+      const fsS  = isMobile ? '9.5px' : '11px';
+      const logoW= isMobile ? '90px' : '140px';
+
+      const S = {
+        card:    'font-family:Arial,sans-serif;font-size:'+fs+';color:#000;background:#fff;border:2px solid #1a2e4a;max-width:680px;margin:0 auto;width:calc(100% - 2rem);box-sizing:border-box;padding:0;',
+        header:  'display:flex;align-items:flex-start;justify-content:space-between;padding:'+(isMobile?'.75rem 1rem .5rem':'1rem 2rem .75rem')+';gap:1rem;border-bottom:none;',
+        logoBox: 'flex-shrink:0;width:'+logoW+';',
+        logoImg: 'width:100%;height:auto;object-fit:contain;',
+        coBlock: 'text-align:right;',
+        coName:  'font-size:'+(isMobile?'11px':'13px')+';font-weight:700;color:#1a2e4a;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;',
+        coAddr:  'font-size:'+(isMobile?'8.5px':'9.5px')+';color:#444;line-height:1.6;text-align:right;',
+        banner:  'background:#1a2e4a;padding:'+(isMobile?'10px 12px':'12px 1.5rem')+';',
+        bannerT: 'color:#fff;font-size:'+(isMobile?'11px':'13px')+';font-weight:700;letter-spacing:.04em;text-transform:uppercase;',
+        bannerD: 'color:rgba(255,255,255,.5);font-size:'+(isMobile?'11px':'13px')+';',
+        metaRow: 'display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #c0ccd8;border-left:none;border-right:none;margin:0;',
+        metaCell:'padding:'+pad+' '+(isMobile?'1rem':'2rem')+';border-right:1px solid #c0ccd8;',
+        metaLbl: 'font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#1a2e4a;margin-bottom:2px;',
+        metaVal: 'font-size:'+(isMobile?'11px':'12.5px')+';font-weight:400;color:#000;',
+        secHdr:  'font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#1a2e4a;padding:'+(isMobile?'8px 1rem 5px':'10px 2rem 5px')+';border-bottom:3px solid #E8A020;background:transparent;margin-top:0;',
+        insBlock:'display:grid;grid-template-columns:'+(isMobile?'1fr':'1fr 1fr')+';border-bottom:1px solid #c0ccd8;',
+        insCell: 'padding:'+pad+' '+(isMobile?'1rem':'2rem')+';',
+        insCellR:'padding:'+pad+' '+(isMobile?'1rem':'2rem')+';border-left:'+(isMobile?'none':'1px solid #c0ccd8')+';border-top:'+(isMobile?'1px solid #c0ccd8':'none')+';',
+        insLbl:  'font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#1a2e4a;margin-bottom:4px;',
+        insName: 'font-size:'+(isMobile?'12px':'14px')+';font-weight:700;color:#000;',
+        tbl:     'width:100%;border-collapse:collapse;',
+        thNav:   'background:#1a2e4a;color:#fff;padding:'+padS+' '+(isMobile?'8px':'14px')+';font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.04em;border:1px solid #1a2e4a;text-align:left;',
+        thNavR:  'background:#1a2e4a;color:#fff;padding:'+padS+' '+(isMobile?'8px':'14px')+';font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.04em;border:1px solid #1a2e4a;text-align:right;',
+        td:      'padding:'+pad+';border:1px solid #c0ccd8;font-size:'+fs+';',
+        tdR:     'padding:'+pad+';border:1px solid #c0ccd8;font-size:'+fs+';text-align:right;',
+        tdBold:  'padding:'+pad+';border:1px solid #c0ccd8;font-size:'+fs+';font-weight:700;',
+        tdBoldR: 'padding:'+pad+';border:1px solid #c0ccd8;font-size:'+fs+';font-weight:700;text-align:right;',
+        tdTotal: 'padding:'+padS+';border:1px solid #1a2e4a;font-size:'+(isMobile?'11px':'13px')+';font-weight:700;background:#eef2f7;text-align:right;',
+        tdTotL:  'padding:'+padS+';border:1px solid #1a2e4a;font-size:'+(isMobile?'11px':'13px')+';font-weight:700;background:#eef2f7;',
+        bankGrid:'display:grid;grid-template-columns:'+(isMobile?'1fr':'1fr 1fr')+';',
+        bankCol: 'padding:'+pad+' '+(isMobile?'1rem':'2rem')+';',
+        bankColR:'padding:'+pad+' '+(isMobile?'1rem':'2rem')+';border-left:'+(isMobile?'none':'1px solid #c0ccd8')+';border-top:'+(isMobile?'1px solid #c0ccd8':'none')+';',
+        bankHdr: 'font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#1a2e4a;margin-bottom:6px;',
+        bankRow: 'display:flex;gap:6px;margin-bottom:3px;font-size:'+fsS+';',
+        bankLbl: 'font-weight:700;color:#333;flex-shrink:0;min-width:'+(isMobile?'90px':'110px')+';',
+        bankVal: 'color:#000;word-break:break-word;',
+        footBar: 'background:#1a2e4a;padding:10px 2rem;text-align:center;',
+        footTxt: 'font-size:'+(isMobile?'9px':fsS)+';color:rgba(255,255,255,.7);',
+      };
+
+      // Bank columns
+      const bankRows = getBankRows();
+      const splitAt  = bankRows.length >= 8 ? 5 : Math.ceil(bankRows.length/2);
+      const bankCol1 = bankRows.slice(0,splitAt);
+      const bankCol2 = bankRows.slice(splitAt);
+
+      // TSI table rows
+      // TSI breakdown: each item shows its own sum insured and premium
+      // Sum the TSI premiums; if total matches rawPrem use it, else show rawPrem in total row
+      const tsiPremTotal = tsiRows.reduce((s,r)=>s+(parseFloat(String(r.p||0).replace(/,/g,''))||0),0);
+      const tsiHTML = tsiRows.length > 0
+        ? tsiRows.map(r=>{
+            const tsiSum  = r.v ? fmt(parseFloat(String(r.v).replace(/,/g,''))) : '—';
+            const tsiPrem = r.p ? fmt(parseFloat(String(r.p).replace(/,/g,''))) : '—';
+            return '<tr><td style="'+S.td+'">'+r.l+'</td><td style="'+S.tdR+'">'+tsiSum+'</td><td style="'+S.tdR+'">'+tsiPrem+'</td></tr>';
+          }).join('')
+          + '<tr><td style="'+S.tdBold+'">Total</td><td style="'+S.tdBoldR+'">'+(fmt(pSum)||'—')+'</td><td style="'+S.tdBoldR+'">'+(tsiPremTotal>0?fmt(tsiPremTotal):fmt(rawPrem))+'</td></tr>'
+        : '<tr><td style="'+S.tdBold+'">'+(pRisk||'—')+'</td><td style="'+S.tdBoldR+'">'+(fmt(pSum)||'—')+'</td><td style="'+S.tdBoldR+'">'+fmt(rawPrem)+'</td></tr>';
+
+      const xPremHTML = allExtraRows.map(r=>'<tr><td colspan="2" style="'+S.td+'">'+r.l+'</td><td style="'+S.tdR+'">'+fmt(r.v)+'</td></tr>').join('');
+      const vatHTML   = isVatable
+        ? '<tr><td colspan="2" style="'+S.td+'">VAT (20%)</td><td style="'+S.tdR+'">'+fmt(vatAmt)+'</td></tr>'
+        : '<tr><td colspan="2" style="'+S.td+'">VAT</td><td style="'+S.tdR+'">Exempt</td></tr>';
+
+      const condHTML = notesLines.length > 0
+        ? notesLines.map(l=>'<div style="font-size:'+fsS+';margin-bottom:4px;line-height:1.6;padding-left:0;">'+l+'</div>').join('')
+        : '';
+
+      document.getElementById('quote-output').innerHTML =
+        '<div id="inv-card" style="'+S.card+'">'
+
+        // HEADER
+        +'<div style="'+S.header+'">'
+        +'<div style="'+S.logoBox+'">'+(logoSrc?'<img src="'+logoSrc+'" style="'+S.logoImg+'" alt="logo"/>':'<div style="font-weight:700;font-size:18px;color:#1a2e4a;">'+initials+'</div>')+'</div>'
+        +'<div style="'+S.coBlock+'"><div style="'+S.coName+'">'+coName+'</div><div style="'+S.coAddr+'">'+addrLines.join('<br>')+'</div></div>'
+        +'</div>'
+
+        // BANNER
+        +'<div style="'+S.banner+'"><span style="'+S.bannerT+'">'+(pClass||'Insurance')+'</span> <span style="'+S.bannerD+'">&bull; QUOTATION</span></div>'
+
+        // META ROW
+        +'<div style="'+S.metaRow+'">'
+        +'<div style="'+S.metaCell+'"><div style="'+S.metaLbl+'">Invoice No.</div><div style="'+S.metaVal+'">'+pInv+'</div></div>'
+        +'<div style="'+S.metaCell+'"><div style="'+S.metaLbl+'">Issue Date</div><div style="'+S.metaVal+'">'+today+'</div></div>'
+        +'<div style="padding:'+pad+' '+(isMobile?'1rem':'2rem')+';"><div style="'+S.metaLbl+'">Payment Due</div><div style="'+S.metaVal+'">'+pPayDue+'</div></div>'
+        +'</div>'
+
+        // INSURED & POLICY DETAILS
+        +'<div style="'+S.secHdr+'">Insured &amp; Policy Details</div>'
+        +'<div style="'+S.insBlock+'">'
+        +'<div style="'+S.insCell+'"><div style="'+S.insLbl+'">Insured</div><div style="'+S.insName+'">'+clName+'</div></div>'
+        +'<div style="'+S.insCellR+'"><div style="'+S.insLbl+'">Policy Details</div>'
+        +'<div style="font-size:'+fsS+';line-height:1.75;">'
+        +'<strong>Type of Policy:</strong> '+pClass+'<br>'
+        +(period?'<strong>Period of Cover:</strong> '+period+'<br>':'')
+        +'<strong>Cover Basis:</strong> Annual / 12 months'
+        +(pExcess?'<br><strong>Excess / Deductible:</strong> '+pExcess:'')
+        +'</div></div>'
+        +'</div>'
+
+        // SUBJECT MATTER & PREMIUM
+        +'<div style="'+S.secHdr+'">Subject Matter &amp; Premium</div>'
+        +'<table style="'+S.tbl+'">'
+        +'<thead><tr>'
+        +'<th style="'+S.thNav+';width:50%;">Subject Matter Insured</th>'
+        +'<th style="'+S.thNavR+';width:25%;">Sum Insured (GHS)</th>'
+        +'<th style="'+S.thNavR+';width:25%;">Premium (GHS)</th>'
+        +'</tr></thead>'
+        +'<tbody>'
+        +tsiHTML
+        +xPremHTML
+        +vatHTML
+        +'<tr><td colspan="2" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td><td style="'+S.tdTotal+'">GHS '+fmt(totalPrem)+'</td></tr>'
+        +'</tbody></table>'
+
+        // CONDITIONS
+        +(condHTML?'<div style="'+S.secHdr+'">Conditions &amp; Notes</div><div style="padding:'+pad+' '+(isMobile?'1rem':'2rem')+';">'+condHTML+'</div>':'')
+
+        // PAYMENT DETAILS — two-column navy header table like PDF
+        +'<div style="'+S.secHdr+'">Payment Details</div>'
+        +(payIntro?'<div style="padding:'+pad+' '+(isMobile?'1rem':'2rem')+';font-size:'+fsS+';color:#555;font-style:italic;border-bottom:1px solid #e8eef5;">'+payIntro+'</div>':'')
+        +'<table style="width:100%;border-collapse:collapse;">'
+        +'<thead><tr>'
+        +'<th style="background:#1a2e4a;color:#fff;padding:'+padS+' '+(isMobile?'1rem':'2rem')+';font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.06em;width:50%;text-align:left;border-right:2px solid #fff;">Bank Transfer</th>'
+        +'<th style="background:#1a2e4a;color:#fff;padding:'+padS+' '+(isMobile?'1rem':'2rem')+';font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.06em;width:50%;text-align:left;">Mobile Money</th>'
+        +'</tr></thead>'
+        +'<tbody><tr style="vertical-align:top;">'
+        +'<td style="padding:'+pad+' '+(isMobile?'1rem':'2rem')+';border:1px solid #c0ccd8;border-left:none;">'
+        + bankCol1.map(r=>'<div style="font-size:'+fsS+';margin-bottom:4px;line-height:1.55;"><strong>'+r.l+':</strong>&nbsp;'+r.v+'</div>').join('')
+        +'</td>'
+        +'<td style="padding:'+pad+' '+(isMobile?'1rem':'2rem')+';border:1px solid #c0ccd8;border-right:none;">'
+        + (bankCol2.length
+            ? bankCol2.map(r=>'<div style="font-size:'+fsS+';margin-bottom:4px;line-height:1.55;"><strong>'+r.l+':</strong>&nbsp;'+r.v+'</div>').join('')
+            : '<span style="font-size:'+fsS+';color:#aaa;font-style:italic;">—</span>')
+        +'</td>'
+        +'</tr></tbody>'
+        +'</table>'
+
+        // SIGNATORY — italic bold, name (Role) format, like PDF
+        +'<div style="padding:'+(isMobile?'.75rem 1rem':'1rem 2rem')+';border-top:3px solid #E8A020;">'
+        +'<div style="font-size:'+(isMobile?'11px':'12.5px')+';font-style:italic;font-weight:700;color:#000;">'+(sigName||'[Quote By]')+(sigRole?' ('+sigRole+')':'')+'</div>'
+        +'</div>'
+
+        // FOOTER — centred two lines + page number like PDF
+        +'<div style="background:#1a2e4a;padding:8px 2rem;text-align:center;">'
+        +'<div style="font-size:'+(isMobile?'9px':fsS)+';color:rgba(255,255,255,.75);line-height:1.8;">'
+        + coName+' &bull; Regulated by the National Insurance Commission of Ghana<br>'
+        + 'www.vanguardassurance.com &bull; Tel: '+coTel+' &bull; Page 1 of 1'
+        +'</div>'
+        +'</div>'
+
+        +'</div>';
+
+    } catch(err) {
+      console.error('generateQuote error:', err);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
+      document.getElementById('quote-output').innerHTML =
+        '<div style="padding:2rem;color:#c0392b;font-family:sans-serif;font-size:13px;"><strong>Error rendering quote.</strong><br>'+err.message+'</div>';
+    }
   }
 
   // ── SEND QUOTE BY EMAIL ──────────────────────────────────
@@ -699,510 +1197,55 @@
     }
   }
 
-  async function sendQuoteEmail() {
-    const recipientEmail = g('send-email');
-    if (!recipientEmail) { alert('Please enter a recipient email address.'); return; }
+  async function downloadQuote() {
     const card = document.getElementById('inv-card');
-    if (!card) { alert('Please generate the quote first before sending.'); return; }
-
-    const btn = document.getElementById('send-btn');
+    if (!card) { alert('Please generate the quote first.'); return; }
+    const btn = document.getElementById('dl-btn');
     btn.disabled = true;
-    btn.innerHTML = '<i class="ti ti-loader ti-spin"></i> Sending...';
-
+    btn.innerHTML = '<i class="ti ti-loader ti-spin"></i> Generating PDF...';
     try {
-      const quoteRef  = g('p-inv')   || 'Quote';
-      const clName2   = g('cl-name') || 'Client';
-      const sigName2  = g('sig-name')|| 'Vanguard Assurance';
-      const subject   = 'Insurance Quotation – ' + quoteRef + ' – ' + clName2;
-
-      // Wrap quote card in a full email-friendly HTML body
-      const emailHTML =
-        '<div style="font-family:Arial,sans-serif;max-width:720px;margin:0 auto;padding:16px;">' +
-        '<p style="font-size:13px;margin-bottom:12px;">Dear <strong>' + clName2 + '</strong>,</p>' +
-        '<p style="font-size:13px;margin-bottom:20px;">Please find below your insurance quotation from Vanguard Assurance Company Limited.</p>' +
-        card.outerHTML +
-        '<p style="font-size:12px;margin-top:20px;color:#555;">Should you have any queries, please do not hesitate to contact us.<br><br>' +
-        'Kind regards,<br><strong>' + sigName2 + '</strong><br>' +
-        'Vanguard Assurance Company Limited<br>' +
-        'Tel: +233 0302 666 485-7/782 921-2 | www.vanguardassurance.com</p>' +
-        '</div>';
-
-      if (typeof emailjs === 'undefined') throw new Error('EmailJS not loaded');
-      try { emailjs.init({ publicKey: EMAILJS_PUBLIC, blockHeadless: false }); }
-      catch(ex) { emailjs.init(EMAILJS_PUBLIC); }
-
-      await emailjs.send(EMAILJS_SERVICE, EMAILJS_CLIENT_TEMPLATE, {
-        to_email: recipientEmail,
-        subject:  subject,
-        message:  emailHTML,
-      });
-
-      btn.innerHTML = '<i class="ti ti-check"></i> Quote sent!';
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="ti ti-mail-forward"></i> Send quote to client';
-      }, 3000);
-
-    } catch(err) {
-      console.error('EmailJS send failed:', err);
-      btn.disabled = false;
-      btn.innerHTML = '<i class="ti ti-mail-forward"></i> Send quote to client';
-      alert('Could not send email. Please check your internet connection and try again.');
-    }
-  }
-
-  // ── MODAL ────────────────────────────────────────────────
-  function showDupModal(matchRef, officerName) {
-    document.getElementById('modal-body').textContent =
-      `A matching quote for the same policy class and sum insured was already generated within the last 7 days by this branch.`;
-    document.getElementById('modal-ref').textContent = `Existing quote reference: ${matchRef}`;
-    document.getElementById('modal-note').textContent =
-      `An alert has been sent to the compliance officer. Please use the existing reference.`;
-    document.getElementById('dup-modal').classList.add('active');
-  }
-
-  function closeModal() {
-    document.getElementById('dup-modal').classList.remove('active');
-  }
-
-  // ── GOOGLE SHEETS: READ via published CSV (no CORS issues) ──
-  // ── CONFIG ──────────────────────────────────────────────────────────────
-  // Duplicate check uses JSONP (browser GET) as primary — reads live sheet data
-  // localStorage is secondary fallback for same-device detection
-
-  // ── LOCAL QUOTE STORE — persists across sessions via localStorage ──────
-  const LOCAL_STORE_KEY = 'vanguard_quote_log';
-
-  function saveQuoteLocally(quoteData) {
-    try {
-      const existing = JSON.parse(localStorage.getItem(LOCAL_STORE_KEY) || '[]');
-      existing.push(quoteData);
-      // Keep only last 200 quotes to avoid storage bloat
-      const trimmed = existing.slice(-200);
-      localStorage.setItem(LOCAL_STORE_KEY, JSON.stringify(trimmed));
-    } catch(e) {
-      console.warn('Could not save to localStorage:', e);
-    }
-  }
-
-  function getLocalQuotes() {
-    try {
-      return JSON.parse(localStorage.getItem(LOCAL_STORE_KEY) || '[]');
-    } catch(e) {
-      return [];
-    }
-  }
-
-  async function fetchRecentQuotes() {
-    // Primary: JSONP from Apps Script — reads LIVE sheet data (cross-device)
-    // This works because the browser makes the request, not a server
-    const jsonpQuotes = await new Promise((resolve) => {
-      const oldScript = document.getElementById('__gsCallback');
-      if (oldScript) oldScript.remove();
-      const timer = setTimeout(() => {
-        console.warn('JSONP timed out — falling back to localStorage');
-        resolve(null); // null = timed out
-      }, 5000);
-      window.__gsResolve = function(data) {
-        clearTimeout(timer);
-        const quotes = data.quotes || [];
-        // Sync into localStorage as backup
-        if (quotes.length > 0) {
-          localStorage.setItem(LOCAL_STORE_KEY, JSON.stringify(quotes));
+      const { jsPDF } = window.jspdf;
+      const canvas = await html2canvas(card, { scale:2, useCORS:true, backgroundColor:'#fff', logging:false });
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf     = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+      const pageW   = pdf.internal.pageSize.getWidth();
+      const pageH   = pdf.internal.pageSize.getHeight();
+      const margin  = 8;
+      const imgW    = pageW - margin*2;
+      const imgH    = (canvas.height * imgW) / canvas.width;
+      let yPos = margin;
+      if (imgH <= pageH - margin*2) {
+        pdf.addImage(imgData, 'JPEG', margin, yPos, imgW, imgH);
+      } else {
+        // Multi-page for long quotes
+        let remaining = imgH;
+        let srcY = 0;
+        while (remaining > 0) {
+          const sliceH = Math.min(remaining, pageH - margin*2);
+          const sliceCanvas = document.createElement('canvas');
+          sliceCanvas.width  = canvas.width;
+          sliceCanvas.height = (sliceH / imgH) * canvas.height;
+          const ctx = sliceCanvas.getContext('2d');
+          ctx.drawImage(canvas, 0, srcY * canvas.height / imgH, canvas.width, sliceCanvas.height, 0, 0, canvas.width, sliceCanvas.height);
+          if (srcY > 0) pdf.addPage();
+          pdf.addImage(sliceCanvas.toDataURL('image/jpeg',0.95), 'JPEG', margin, margin, imgW, sliceH);
+          srcY  += sliceH;
+          remaining -= sliceH;
         }
-        resolve(quotes);
-      };
-      const script = document.createElement('script');
-      script.id = '__gsCallback';
-      script.src = APPS_SCRIPT_URL + '?callback=__gsResolve&bust=' + Date.now();
-      script.onerror = () => { clearTimeout(timer); resolve(null); };
-      document.body.appendChild(script);
-    });
-
-    if (jsonpQuotes !== null) {
-      console.log('Duplicate check via live sheet:', jsonpQuotes.length, 'quotes');
-      return jsonpQuotes;
-    }
-
-    // Fallback: localStorage (same device only)
-    const local = getLocalQuotes();
-    console.log('Duplicate check via localStorage:', local.length, 'quotes');
-    return local;
-  }
-
-    // ── SHEET WRITE via no-cors (fire-and-forget) + local store ────────
-  async function logQuoteToSheet(quoteData) {
-    // Save locally — this is what powers duplicate detection
-    saveQuoteLocally({
-      quoteRef:    quoteData.quoteRef,
-      date:        quoteData.date || new Date().toISOString(),
-      officer:     quoteData.officer,
-      client:      quoteData.client,
-      policyClass: quoteData.policyClass,
-      sumInsured:  String(quoteData.sumInsured).replace(/,/g,''),
-      premium:     String(quoteData.premium).replace(/,/g,''),
-    });
-    // Write to Google Sheet via no-cors — data goes through silently
-    try {
-      await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ quote: quoteData })
-      });
-    } catch(e) { console.warn('Sheet write failed:', e); }
-  }
-
-  // ── LOG DUPLICATE TO SHEET + localStorage ───────────────────────────
-  async function logDuplicateToSheet(officerName, pClass, pSum, existingRef, attemptedRef) {
-    try {
-      const key = 'vanguard_duplicate_log';
-      const existing = JSON.parse(localStorage.getItem(key) || '[]');
-      existing.push({
-        conflictId:   'CF-' + Date.now(),
-        date:         new Date().toISOString(),
-        officer:      officerName,
-        policyClass:  pClass,
-        sumInsured:   String(pSum).replace(/,/g,''),
-        existingRef:  existingRef,
-        attemptedRef: attemptedRef,
-        action:       'Blocked by system'
-      });
-      localStorage.setItem(key, JSON.stringify(existing.slice(-200)));
-    } catch(e) { console.warn('localStorage duplicate log failed:', e); }
-
-    if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL') return;
-    try {
-      await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-          type: 'duplicate',
-          duplicate: {
-            conflictId:   'CF-' + Date.now(),
-            date:         new Date().toISOString(),
-            officer:      officerName || '',
-            policyClass:  pClass || '',
-            sumInsured:   String(pSum).replace(/,/g,''),
-            existingRef:  existingRef || '',
-            attemptedRef: attemptedRef || '',
-            alertSentTo:  'mdavor@vanguardassurance.com',
-            action:       'Blocked by system'
-          }
-        })
-      });
-    } catch(e) { console.warn('Duplicate sheet log failed:', e); }
-  }
-
-  // ── EMAILJS ALERT ────────────────────────────────────────
-  function sendDuplicateAlert(officerName, pClass, pSum, existingRef, newRef) {
-    if (typeof emailjs === 'undefined') { console.warn('EmailJS SDK not loaded'); return; }
-    try { emailjs.init({ publicKey: EMAILJS_PUBLIC, blockHeadless: false }); } catch(ex) { emailjs.init(EMAILJS_PUBLIC); }
-    emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
-      to_email:      ALERT_EMAIL,
-      officer_name:  officerName || 'Unknown officer',
-      policy_class:  pClass,
-      sum_insured:   pSum,
-      existing_ref:  existingRef,
-      attempted_ref: newRef,
-      attempt_time:  new Date().toLocaleString('en-GB'),
-    }).catch(err => console.warn('EmailJS error:', err));
-  }
-
-  // ── MAIN: GENERATE QUOTE ─────────────────────────────────
-  function buildPremiumRows(pPrem, pClass) {
-    const rawPrem   = parseFloat(String(pPrem).replace(/,/g,'')) || 0;
-    if (!rawPrem) return '<div class="inv-row bold"><span class="inv-row-lbl">Premium:</span><span class="inv-row-val">—</span></div>';
-    const isVatable = pClass && !isBondClass(pClass);
-    const vatAmt    = isVatable ? rawPrem * VAT_RATE : 0;
-    const total     = rawPrem + vatAmt;
-    const vatLine   = isVatable
-      ? '<div class="inv-row"><span class="inv-row-lbl">VAT (20%):</span><span class="inv-row-val">GHS ' + fmt(vatAmt) + '</span></div>'
-      : '<div class="inv-row"><span class="inv-row-lbl">VAT:</span><span class="inv-row-val">Exempt (Bond)</span></div>';
-    return '<div class="inv-row"><span class="inv-row-lbl">Gross Premium:</span><span class="inv-row-val">GHS ' + fmt(rawPrem) + '</span></div>'
-      + vatLine
-      + '<div class="inv-row bold" style="border-top:1px solid #d0d9e4;padding-top:4px;margin-top:2px;"><span class="inv-row-lbl">Premium Payable:</span><span class="inv-row-val">GHS ' + fmt(total) + '</span></div>';
-  }
-
-  async function generateQuote() {
-    const btn = document.querySelector('.gen-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="ti ti-loader ti-spin"></i> Checking for duplicates...';
-    try {
-
-    const coName   = g('co-name')   || 'Vanguard Assurance Company Limited';
-    const coAddr1  = g('co-addr1');
-    const coAddr2  = g('co-addr2');
-    const coTel    = g('co-tel');
-    const coWeb    = g('co-web');
-    const coBranch = g('co-branch');
-    const sigName  = g('sig-name');
-    const sigRole  = g('sig-role');
-    const clName   = g('cl-name')   || '[Client Name]';
-    // Use existing ref if already generated; regenerate only if still blank
-    if (!g('p-inv') && g('p-class')) updateQuoteRef();
-    const pInv     = g('p-inv') || genQuoteRef(g('p-class')) || 'VA/' + new Date().getFullYear() + '/—';
-    const pDate    = g('p-date');
-    const pClass   = g('p-class')   || '';
-    const pSum     = g('p-sum')     || '';
-    const pPrem    = g('p-prem')    || '';
-    const pStart   = g('p-start');
-    const pEnd     = g('p-end');
-    const payIntro = g('pay-intro');
-    const tNotes   = g('t-notes');
-
-    // ── DUPLICATE CHECK ──────────────────────────────────
-    if (pClass && pSum) {
-      const recent = await fetchRecentQuotes();
-      const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-      const normSum = parseFloat(String(pSum).replace(/,/g,''));
-      console.log('Checking duplicates — local quotes:', recent.length, '| class:', pClass, '| sum:', normSum);
-
-      // Debug: log what we read from the sheet
-      console.log('Duplicate check — records fetched:', recent.length);
-      console.log('Checking against — class:', pClass, 'sum:', normSum);
-      if (recent.length > 0) console.log('First record:', JSON.stringify(recent[0]));
-
-      const match = recent.find(q => {
-        // Parse date flexibly — handle ISO strings, DD/MM/YYYY, and spreadsheet formats
-        let qDate = 0;
-        if (q.date) {
-          const raw = String(q.date).trim();
-          // Try direct parse first
-          let d = new Date(raw);
-          // If that fails try DD/MM/YYYY
-          if (isNaN(d.getTime())) {
-            const parts = raw.split(/[\/\-]/);
-            if (parts.length === 3) {
-              // Could be DD/MM/YYYY or MM/DD/YYYY — try both
-              d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-              if (isNaN(d.getTime())) d = new Date(`${parts[2]}-${parts[0]}-${parts[1]}`);
-            }
-          }
-          qDate = isNaN(d.getTime()) ? Date.now() : d.getTime();
-        }
-        const qSum   = parseFloat(String(q.sumInsured).replace(/,/g,''));
-        const sameClass = q.policyClass.trim().toLowerCase() === pClass.trim().toLowerCase();
-        const sameSum   = !isNaN(qSum) && !isNaN(normSum) && Math.abs(qSum - normSum) < 1;
-        const inWindow  = qDate >= sevenDaysAgo;
-        console.log(`  Row: class="${q.policyClass}" sum="${q.sumInsured}" date="${q.date}" → sameClass=${sameClass} sameSum=${sameSum} inWindow=${inWindow}`);
-        return sameClass && sameSum && inWindow;
-      });
-
-      if (match) {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
-        // Log duplicate to sheet and send email alert
-        logDuplicateToSheet(sigName, pClass, pSum, match.quoteRef, pInv);
-        sendDuplicateAlert(sigName, pClass, pSum, match.quoteRef, pInv);
-        showDupModal(match.quoteRef, sigName);
-        return;
       }
-    }
-
-    // ── LOG THIS QUOTE ────────────────────────────────────
-    await logQuoteToSheet({
-      quoteRef:    pInv,
-      date:        new Date().toISOString(),
-      officer:     sigName,
-      client:      clName,
-      policyClass: pClass,
-      sumInsured:  pSum,
-      premium:     pPrem,
-    });
-
-    btn.disabled = false;
-    btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
-
-    // ── RENDER INVOICE ────────────────────────────────────
-    const bankRows = getBankRows();
-    const today    = pDate ? fmtDate(pDate) : new Date().toLocaleDateString('en-GB');
-    const initials = coName.split(' ').filter(w => w.length > 2).slice(0,2).map(w=>w[0]).join('') || coName.slice(0,2).toUpperCase();
-    const logoSrc  = LOGO_DATA_URL;
-    const stampSrc = STAMP_DATA_URL;
-    const addrLines = [coTel ? 'Tel: '+coTel : '', coWeb ? 'Website: '+coWeb : ''].filter(Boolean);
-
-    const bankHtml = bankRows.length > 0 ? `
-      <div class="pay-grid">
-        ${bankRows.map(r => `
-          <div class="pay-item">
-            <div class="pay-lbl">${r.l}</div>
-            <div class="pay-val">${r.v}</div>
-          </div>`).join('')}
-      </div>` : '';
-
-    const period = (pStart && pEnd) ? `${fmtDate(pStart)} – ${fmtDate(pEnd)}` : (pStart ? `From ${fmtDate(pStart)}` : '');
-
-    // ── Premium calculations
-    const rawPrem   = parseFloat(String(pPrem).replace(/,/g,'')) || 0;
-    const isVatable = pClass && !isBondClass(pClass);
-    const vatAmt    = isVatable ? rawPrem * VAT_RATE : 0;
-    const totalPrem = rawPrem + vatAmt;
-
-    // ── Detect mobile for responsive inline styles
-    const isMobile = window.innerWidth <= 600;
-    const pad  = isMobile ? '5px 7px'  : '7px 12px';
-    const padS = isMobile ? '4px 6px'  : '8px 12px';
-    const fs   = isMobile ? '10px'     : '12px';
-    const fsS  = isMobile ? '9.5px'    : '11px';
-    const fsH  = isMobile ? '10.5px'   : '13.5px';
-    const fsT  = isMobile ? '10.5px'   : '13px';
-    const logoW= isMobile ? '100px'    : '200px';
-    const logoT= isMobile ? '.5rem'    : '.75rem';
-    const logoR= isMobile ? '.6rem'    : '1.25rem';
-    const pr   = isMobile ? '110px'    : '215px';
-    const mp   = isMobile ? '.4rem .6rem 0' : '.75rem 1.5rem 0';
-    const mpW  = isMobile ? 'padding:.4rem .6rem 0;' : 'padding:.6rem 1.5rem 0;';
-    const bkM  = isMobile ? 'margin:.4rem .6rem;' : 'margin:.75rem 1.5rem;';
-    const bkTh = isMobile ? '80px' : 'auto';
-
-    // ── Styles (all inline for reliable PDF/print rendering)
-    const S = {
-      card:    'font-family:Arial,sans-serif;font-size:' + fs + ';color:#000;background:#fff;border:1px solid #bbb;max-width:700px;margin:0 auto;width:100%;box-sizing:border-box;',
-      header:  'padding:' + (isMobile?'.75rem .6rem .5rem':'1.25rem 1.5rem 0.75rem') + ';position:relative;border-bottom:3px solid #1a2e4a;',
-      logoBox: 'position:absolute;top:' + logoT + ';right:' + logoR + ';width:' + logoW + ';',
-      coName:  'font-size:' + fsH + ';font-weight:700;color:#1a2e4a;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;',
-      coAddr:  'font-size:' + fsS + ';color:#333;line-height:1.5;',
-      title:   'display:inline-block;margin-top:.5rem;font-size:' + fsT + ';font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#c0392b;border-bottom:2px solid #c0392b;padding-bottom:2px;',
-      // Policy table
-      polTable:'width:100%;border-collapse:collapse;margin:0;',
-      polLbl:  'background:#eef2f7;font-weight:700;font-size:' + fsS + ';text-transform:uppercase;letter-spacing:.03em;color:#1a2e4a;padding:' + pad + ';border:1px solid #c0ccd8;width:40%;',
-      polVal:  'padding:' + pad + ';border:1px solid #c0ccd8;font-size:' + fs + ';word-break:break-word;',
-      polValBold:'padding:' + pad + ';border:1px solid #c0ccd8;font-size:' + fs + ';font-weight:700;word-break:break-word;',
-      // Premium table
-      premWrap: mpW,
-      premTbl: 'width:100%;border-collapse:collapse;',
-      premTh:  'background:#1a2e4a;color:#fff;padding:' + padS + ';font-size:' + fsS + ';font-weight:700;letter-spacing:.03em;border:1px solid #1a2e4a;',
-      premTd:  'padding:' + pad + ';border:1px solid #c0ccd8;font-size:' + fs + ';',
-      premTdR: 'padding:' + pad + ';border:1px solid #c0ccd8;font-size:' + fs + ';text-align:right;font-weight:500;',
-      premFoot:'background:#eef2f7;font-weight:700;font-size:' + fs + ';padding:' + padS + ';border:1px solid #1a2e4a;border-top:2px solid #1a2e4a;',
-      premFootR:'background:#eef2f7;font-weight:700;font-size:' + fs + ';padding:' + padS + ';border:1px solid #1a2e4a;border-top:2px solid #1a2e4a;text-align:right;',
-      // Bank table
-      bankWrap: bkM,
-      bankTh:  'background:#eef2f7;font-weight:700;font-size:' + fsS + ';color:#1a2e4a;padding:' + pad + ';border:1px solid #c0ccd8;white-space:nowrap;width:' + bkTh + ';',
-      bankTd:  'padding:' + pad + ';border:1px solid #c0ccd8;font-size:' + fsS + ';word-break:break-word;',
-      // Footer
-      divider: 'border:none;border-top:2px solid #1a2e4a;margin:.6rem ' + (isMobile?'.6rem':'1.5rem') + ' 0;',
-      footer:  'padding:.6rem ' + (isMobile?'.6rem':'1.5rem') + ' 1.25rem;text-align:center;',
-      sigName: 'font-size:' + fs + ';font-weight:700;color:#000;margin-top:4px;',
-      sigRole: 'font-size:' + fsS + ';color:#333;',
-      stamp:   'width:80px;height:80px;border-radius:50%;border:2px dashed #bbb;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:#aaa;font-style:italic;background:#fafafa;overflow:hidden;margin:6px 0;',
-    };
-
-    // Header text padding-right adjusts for logo
-    const hdrTextStyle = 'text-align:center;padding-right:' + pr + ';';
-
-    // ── Bank rows — 2 columns on desktop, 1 column on mobile
-    let bankTblRows = '';
-    if (isMobile) {
-      // Single column on mobile
-      bankTblRows = bankRows.map(r =>
-        '<tr>'
-        + '<td style="' + S.bankTh + '">' + r.l + '</td>'
-        + '<td style="' + S.bankTd + '">' + r.v + '</td>'
-        + '</tr>'
-      ).join('');
-    } else {
-      const half     = Math.ceil(bankRows.length / 2);
-      const bankCol1 = bankRows.slice(0, half);
-      const bankCol2 = bankRows.slice(half);
-      const maxBR    = Math.max(bankCol1.length, bankCol2.length);
-      bankTblRows    = Array.from({length: maxBR}, (_,i) => {
-        const b1 = bankCol1[i]||{l:'',v:''};
-        const b2 = bankCol2[i]||{l:'',v:''};
-        return '<tr>'
-          + '<td style="' + S.bankTh + '">' + b1.l + '</td>'
-          + '<td style="' + S.bankTd + '">' + b1.v + '</td>'
-          + '<td style="' + S.bankTh + '">' + b2.l + '</td>'
-          + '<td style="' + S.bankTd + '">' + b2.v + '</td>'
-          + '</tr>';
-      }).join('');
-    }
-
-    document.getElementById('quote-output').innerHTML =
-      '<div id="inv-card" style="' + S.card + '">'
-
-      // HEADER
-      + '<div style="' + S.header + '">'
-      +   '<div style="' + S.logoBox + '">'
-      +     (logoSrc ? '<img src="' + logoSrc + '" style="width:100%;height:auto;object-fit:contain;" alt="logo"/>'
-                     : '<div style="font-weight:700;font-size:18px;color:#1a2e4a;">' + initials + '</div>')
-      +   '</div>'
-      +   '<div style="' + hdrTextStyle + '">'
-      +     '<div style="' + S.coName + '">' + coName + '</div>'
-      +     '<div style="' + S.coAddr + '">' + addrLines.join('<br>') + '</div>'
-      +     '<div style="' + S.title + '">INSURANCE PREMIUM QUOTATION</div>'
-      +   '</div>'
-      + '</div>'
-
-      // POLICY DETAILS TABLE
-      + '<div style="padding:.75rem 1.5rem 0;">'
-      +   '<table style="' + S.polTable + '">'
-      +     '<tr><td style="' + S.polLbl + '">Invoice Number</td><td style="' + S.polVal + '">' + pInv + '</td></tr>'
-      +     '<tr><td style="' + S.polLbl + '">Date</td><td style="' + S.polVal + '">' + today + '</td></tr>'
-      +     '<tr><td style="' + S.polLbl + '">Insured</td><td style="' + S.polValBold + '">' + clName + '</td></tr>'
-      +     '<tr><td style="' + S.polLbl + '">Policy Type</td><td style="' + S.polVal + '">' + (pClass||'—') + '</td></tr>'
-      +     (period ? '<tr><td style="' + S.polLbl + '">Period of Cover</td><td style="' + S.polVal + '">' + period + '</td></tr>' : '')
-      +     '<tr><td style="' + S.polLbl + '">Sum Insured</td><td style="' + S.polValBold + '">GHS ' + (fmt(pSum)||'—') + '</td></tr>'
-      +   '</table>'
-      + '</div>'
-
-      // PREMIUM BREAKDOWN TABLE
-      + '<div style="' + S.premWrap + '">'
-      +   '<table style="' + S.premTbl + '">'
-      +     '<thead><tr>'
-      +       '<th style="' + S.premTh + ';width:65%;text-align:left;">Description</th>'
-      +       '<th style="' + S.premTh + ';text-align:right;">Amount (GHS)</th>'
-      +     '</tr></thead>'
-      +     '<tbody>'
-      +       '<tr><td style="' + S.premTd + '">Gross Premium</td><td style="' + S.premTdR + '">' + fmt(rawPrem) + '</td></tr>'
-      +       '<tr><td style="' + S.premTd + '">' + (isVatable ? 'VAT (20%)' : 'VAT') + '</td><td style="' + S.premTdR + '">' + (isVatable ? fmt(vatAmt) : 'Exempt') + '</td></tr>'
-      +       '<tr><td style="' + S.premFoot + '">PREMIUM PAYABLE</td><td style="' + S.premFootR + '">GHS ' + fmt(totalPrem) + '</td></tr>'
-      +     '</tbody>'
-      +   '</table>'
-      + '</div>'
-
-      // PAYMENT INSTRUCTION
-      + (payIntro ? '<div style="padding:.75rem 1.5rem .4rem;font-size:11.5px;line-height:1.65;color:#000;">' + payIntro + '</div>' : '')
-
-      // BANK DETAILS — 2 columns
-      + (bankTblRows ? '<div style="' + S.bankWrap + '"><table style="width:100%;border-collapse:collapse;">' + bankTblRows + '</table></div>' : '')
-
-      // NOTES
-      + (tNotes ? '<div style="padding:.5rem 1.5rem;font-size:11px;color:#555;font-style:italic;">' + tNotes + '</div>' : '')
-
-      // DIVIDER
-      + '<hr style="' + S.divider + '"/>'
-
-      // FOOTER — centred signatory
-      + '<div style="' + S.footer + '">'
-      +   '<div style="display:inline-block;text-align:center;">'
-      +     '<div style="font-size:12px;color:#000;margin-bottom:4px;">For and On Behalf of,<br><strong>' + coName + '</strong></div>'
-      +     (stampSrc
-          ? '<div style="' + S.stamp + ' border:none;background:transparent;"><img src="' + stampSrc + '" style="width:100%;height:100%;border-radius:50%;object-fit:contain;" alt="stamp"/></div>'
-          : '<div style="' + S.stamp + '"><span>Stamp</span></div>')
-      +     '<div style="' + S.sigName + '">' + (sigName||'[Quote By]') + '</div>'
-      +     '<div style="' + S.sigRole + '">' + (sigRole||'[Role / Title]') + '</div>'
-      +   '</div>'
-      + '</div>'
-
-      + '</div>';
-    } catch(err) {
-      console.error('generateQuote error:', err);
+      const ref  = g('p-inv') || 'Quote';
+      const name = g('cl-name') || 'Client';
+      pdf.save(('Vanguard_' + ref + '_' + name).replace(/[^a-zA-Z0-9_-]/g,'_') + '.pdf');
+      btn.innerHTML = '<i class="ti ti-check"></i> Downloaded!';
+      setTimeout(() => { btn.disabled=false; btn.innerHTML='<i class="ti ti-download"></i> Download quote (PDF)'; }, 3000);
+    } catch(e) {
+      console.error(e);
       btn.disabled = false;
-      btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
-      document.getElementById('quote-output').innerHTML =
-        `<div style="padding:2rem;color:#c0392b;font-family:sans-serif;font-size:13px;">
-          <strong>Error rendering quote.</strong><br>${err.message}
-        </div>`;
+      btn.innerHTML = '<i class="ti ti-download"></i> Download quote (PDF)';
+      window.print();
     }
   }
 
-  // ── COPY AS TEXT ─────────────────────────────────────────
-  function printQuote() {
-    window.print();
-  }
 
   function copyText() {
     const card = document.getElementById('inv-card');
@@ -1218,11 +1261,14 @@
   // ── PREFILL ──────────────────────────────────────────────
   (function prefill() {
     document.getElementById('p-date').value = new Date().toISOString().slice(0,10);
-    addBankField('Branch', 'Private Banking');
-    addBankField('Bank name', 'Ecobank Ghana Limited');
-    addBankField('Bank account name', 'Vanguard Assurance Company Limited');
-    addBankField('Bank account number', 'Cedi: 1441001519859 | Dollar: 3441001519858');
-    addBankField('Swift Code', 'ECOCGHAC');
+    addBankField('Bank', 'Stanbic Bank Ghana');
+    addBankField('Account Name', 'Vanguard Assurance Company Limited');
+    addBankField('Account No.', '9040002318223');
+    addBankField('Branch', 'Accra Main');
+    addBankField('Branch Code', '190101');
+    addBankField('Provider', 'MTN MoMo');
+    addBankField('Merchant', 'Vanguard Assurance Co. Ltd.');
+    addBankField('Number', '0245 093 045');
   })();
 
 </script>
