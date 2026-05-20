@@ -74,7 +74,8 @@
   .prt-btn:hover { background: #d0dff0; }
 
   /* PREVIEW */
-  .preview-panel { padding: 1.5rem 2rem; overflow-y: auto; overflow-x: hidden; }
+  .preview-panel { padding: 1.5rem 2rem; overflow-y: auto; overflow-x: auto; }
+  #quote-output { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .prev-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.1rem; }
   .prev-topbar h2 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); }
   .copy-btn { font-size: 11px; color: var(--muted); background: var(--surface); border: var(--rule); border-radius: var(--r); padding: 5px 11px; cursor: pointer; display: flex; align-items: center; gap: 5px; font-family: 'Inter', sans-serif; font-weight: 500; transition: background 0.12s; }
@@ -265,11 +266,10 @@
     .bank-row-grid { grid-template-columns: 1fr; }
 
     /* Preview panel — full width */
-    .preview-panel { padding: 0.75rem 0.5rem; }
+    .preview-panel { padding: 0.75rem; overflow-x: auto; }
 
-    /* Invoice card — full width, no shrinkage */
-    .inv-card { max-width: 100%; font-size: 10.5px; }
-    .inv-header { padding: 1rem; }
+    /* Invoice card — fixed width, scrollable */
+    .inv-card { max-width: 100%; font-size: 10.5px; }    .inv-header { padding: 1rem; }
     .inv-logo-box { width: 100px; top: 0.75rem; right: 0.75rem; }
     .inv-header-text { padding-right: 110px; }
     .inv-co-name { font-size: 11px; }
@@ -985,56 +985,51 @@
       // ── Notes as numbered list
       const notesLines = tNotes ? tNotes.split('\n').map(l=>l.trim()).filter(Boolean) : [];
 
-      // ── Responsive styles
-      const isMobile = window.innerWidth <= 600;
-      // Tighter padding everywhere — goal is single page
-      const pad  = isMobile ? '5px 10px'  : '5px 14px';
-      const padS = isMobile ? '4px 10px'  : '6px 14px';
-      const fs   = isMobile ? '11.5px'    : '11.5px';
-      const fsS  = isMobile ? '10.5px'    : '10.5px';
-      const logoW= isMobile ? '72px'      : '120px';
+      // ── Fixed layout — identical on all screen sizes (mobile zooms to read)
+      const pad  = '5px 14px';
+      const padS = '6px 14px';
+      const fs   = '11.5px';
+      const fsS  = '10.5px';
 
       const S = {
-        card:    'font-family:Arial,sans-serif;font-size:'+fs+';color:#000;background:#fff;border:2px solid #1a2e4a;max-width:680px;margin:0 auto;width:100%;box-sizing:border-box;padding:0;',
-        header:  'display:flex;align-items:center;justify-content:space-between;padding:'+(isMobile?'8px 10px 6px':'10px 18px 8px')+';gap:.5rem;',
-        logoBox: 'flex-shrink:0;width:'+logoW+';',
+        card:    'font-family:Arial,sans-serif;font-size:'+fs+';color:#000;background:#fff;border:2px solid #1a2e4a;width:680px;min-width:680px;box-sizing:border-box;padding:0;',
+        header:  'display:flex;align-items:center;justify-content:space-between;padding:10px 18px 8px;gap:.5rem;',
+        logoBox: 'flex-shrink:0;width:120px;',
         logoImg: 'width:100%;height:auto;object-fit:contain;',
         coBlock: 'text-align:right;flex:1;min-width:0;',
-        coName:  'font-size:'+(isMobile?'10.5px':'12px')+';font-weight:700;color:#1a2e4a;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px;line-height:1.25;word-break:break-word;',
-        coAddr:  'font-size:'+(isMobile?'8.5px':'9px')+';color:#444;line-height:1.4;text-align:right;',
-        banner:  'background:#1a2e4a;padding:'+(isMobile?'6px 10px':'7px 18px')+';',
-        bannerT: 'color:#fff;font-size:'+(isMobile?'11px':'12px')+';font-weight:700;letter-spacing:.04em;text-transform:uppercase;',
-        bannerD: 'color:rgba(255,255,255,.5);font-size:'+(isMobile?'11px':'12px')+';',
-        metaRow: isMobile
-          ? 'display:grid;grid-template-columns:1fr 1fr;border:1px solid #c0ccd8;border-left:none;border-right:none;margin:0;'
-          : 'display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #c0ccd8;border-left:none;border-right:none;margin:0;',
-        metaCell:'padding:'+pad+' '+(isMobile?'10px':'14px')+';border-right:1px solid #c0ccd8;',
-        metaLbl: 'font-size:'+(isMobile?'9px':'9.5px')+';font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#1a2e4a;margin-bottom:1px;',
-        metaVal: 'font-size:'+(isMobile?'11px':'11.5px')+';font-weight:400;color:#000;',
-        secHdr:  'font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#1a2e4a;padding:'+(isMobile?'5px 10px 4px':'6px 14px 4px')+';border-bottom:2px solid #E8A020;background:transparent;margin-top:0;',
-        insBlock:'display:grid;grid-template-columns:'+(isMobile?'1fr':'1fr 1fr')+';border-bottom:1px solid #c0ccd8;',
-        insCell: 'padding:'+pad+' '+(isMobile?'10px':'14px')+';',
-        insCellR:'padding:'+pad+' '+(isMobile?'10px':'14px')+';border-left:'+(isMobile?'none':'1px solid #c0ccd8')+';border-top:'+(isMobile?'1px solid #c0ccd8':'none')+';',
-        insLbl:  'font-size:'+(isMobile?'9px':'9.5px')+';font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#1a2e4a;margin-bottom:2px;',
-        insName: 'font-size:'+(isMobile?'12px':'13px')+';font-weight:700;color:#000;line-height:1.3;',
+        coName:  'font-size:12px;font-weight:700;color:#1a2e4a;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px;line-height:1.25;',
+        coAddr:  'font-size:9px;color:#444;line-height:1.4;text-align:right;',
+        banner:  'background:#1a2e4a;padding:7px 18px;',
+        bannerT: 'color:#fff;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;',
+        bannerD: 'color:rgba(255,255,255,.5);font-size:12px;',
+        metaRow: 'display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #c0ccd8;border-left:none;border-right:none;margin:0;',
+        metaCell:'padding:'+pad+';border-right:1px solid #c0ccd8;',
+        metaLbl: 'font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#1a2e4a;margin-bottom:1px;',
+        metaVal: 'font-size:11.5px;font-weight:400;color:#000;',
+        secHdr:  'font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#1a2e4a;padding:6px 14px 4px;border-bottom:2px solid #E8A020;background:transparent;margin-top:0;',
+        insBlock:'display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #c0ccd8;',
+        insCell: 'padding:'+pad+';',
+        insCellR:'padding:'+pad+';border-left:1px solid #c0ccd8;',
+        insLbl:  'font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#1a2e4a;margin-bottom:2px;',
+        insName: 'font-size:13px;font-weight:700;color:#000;line-height:1.3;',
         tbl:     'width:100%;border-collapse:collapse;',
-        thNav:   'background:#1a2e4a;color:#fff;padding:'+padS+' '+(isMobile?'8px':'12px')+';font-size:'+(isMobile?'9.5px':'10px')+';font-weight:700;text-transform:uppercase;letter-spacing:.03em;border:1px solid #1a2e4a;text-align:left;',
-        thNavR:  'background:#1a2e4a;color:#fff;padding:'+padS+' '+(isMobile?'8px':'12px')+';font-size:'+(isMobile?'9.5px':'10px')+';font-weight:700;text-transform:uppercase;letter-spacing:.03em;border:1px solid #1a2e4a;text-align:right;',
-        td:      'padding:'+pad+' '+(isMobile?'8px':'12px')+';border:1px solid #c0ccd8;font-size:'+fs+';line-height:1.4;',
-        tdR:     'padding:'+pad+' '+(isMobile?'8px':'12px')+';border:1px solid #c0ccd8;font-size:'+fs+';text-align:right;white-space:nowrap;',
-        tdBold:  'padding:'+pad+' '+(isMobile?'8px':'12px')+';border:1px solid #c0ccd8;font-size:'+fs+';font-weight:700;',
-        tdBoldR: 'padding:'+pad+' '+(isMobile?'8px':'12px')+';border:1px solid #c0ccd8;font-size:'+fs+';font-weight:700;text-align:right;white-space:nowrap;',
-        tdTotal: 'padding:'+padS+' '+(isMobile?'8px':'12px')+';border:1px solid #1a2e4a;font-size:'+(isMobile?'11.5px':'12px')+';font-weight:700;background:#eef2f7;text-align:right;white-space:nowrap;',
-        tdTotL:  'padding:'+padS+' '+(isMobile?'8px':'12px')+';border:1px solid #1a2e4a;font-size:'+(isMobile?'11.5px':'12px')+';font-weight:700;background:#eef2f7;',
-        bankGrid:'display:grid;grid-template-columns:'+(isMobile?'1fr':'1fr 1fr')+';',
-        bankCol: 'padding:'+pad+' '+(isMobile?'10px':'14px')+';',
-        bankColR:'padding:'+pad+' '+(isMobile?'10px':'14px')+';border-left:'+(isMobile?'none':'1px solid #c0ccd8')+';border-top:'+(isMobile?'1px solid #c0ccd8':'none')+';',
+        thNav:   'background:#1a2e4a;color:#fff;padding:'+padS+' 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;border:1px solid #1a2e4a;text-align:left;',
+        thNavR:  'background:#1a2e4a;color:#fff;padding:'+padS+' 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;border:1px solid #1a2e4a;text-align:right;',
+        td:      'padding:'+pad+' 12px;border:1px solid #c0ccd8;font-size:'+fs+';line-height:1.4;',
+        tdR:     'padding:'+pad+' 12px;border:1px solid #c0ccd8;font-size:'+fs+';text-align:right;white-space:nowrap;',
+        tdBold:  'padding:'+pad+' 12px;border:1px solid #c0ccd8;font-size:'+fs+';font-weight:700;',
+        tdBoldR: 'padding:'+pad+' 12px;border:1px solid #c0ccd8;font-size:'+fs+';font-weight:700;text-align:right;white-space:nowrap;',
+        tdTotal: 'padding:'+padS+' 12px;border:1px solid #1a2e4a;font-size:12px;font-weight:700;background:#eef2f7;text-align:right;white-space:nowrap;',
+        tdTotL:  'padding:'+padS+' 12px;border:1px solid #1a2e4a;font-size:12px;font-weight:700;background:#eef2f7;',
+        bankGrid:'display:grid;grid-template-columns:1fr 1fr;',
+        bankCol: 'padding:'+pad+';',
+        bankColR:'padding:'+pad+';border-left:1px solid #c0ccd8;',
         bankHdr: 'font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#1a2e4a;margin-bottom:4px;',
         bankRow: 'display:flex;gap:4px;margin-bottom:2px;font-size:'+fsS+';',
-        bankLbl: 'font-weight:700;color:#333;flex-shrink:0;min-width:'+(isMobile?'80px':'100px')+';',
+        bankLbl: 'font-weight:700;color:#333;flex-shrink:0;min-width:100px;',
         bankVal: 'color:#000;word-break:break-word;',
-        footBar: 'background:#1a2e4a;padding:'+(isMobile?'7px 10px':'7px 18px')+';text-align:center;',
-        footTxt: 'font-size:'+(isMobile?'9.5px':fsS)+';color:rgba(255,255,255,.75);line-height:1.6;',
+        footBar: 'background:#1a2e4a;padding:7px 18px;text-align:center;',
+        footTxt: 'font-size:'+fsS+';color:rgba(255,255,255,.75);line-height:1.6;',
       };
 
       // Bank columns
@@ -1077,19 +1072,12 @@
         // BANNER
         +'<div style="'+S.banner+'"><span style="'+S.bannerT+'">'+(pClass||'Insurance')+'</span> <span style="'+S.bannerD+'">&bull; QUOTATION</span></div>'
 
-        // META ROW — 3-col on desktop, 2-col on mobile (Payment Due spans below on mobile)
-        +(isMobile
-          ? '<div style="'+S.metaRow+'">'
-            +'<div style="'+S.metaCell+'"><div style="'+S.metaLbl+'">Invoice No.</div><div style="'+S.metaVal+'">'+pInv+'</div></div>'
-            +'<div style="padding:'+pad+' 10px;"><div style="'+S.metaLbl+'">Issue Date</div><div style="'+S.metaVal+'">'+today+'</div></div>'
-            +'</div>'
-            +'<div style="padding:'+pad+' 10px;border-bottom:1px solid #c0ccd8;"><div style="'+S.metaLbl+'">Payment Due</div><div style="'+S.metaVal+'">'+pPayDue+'</div></div>'
-          : '<div style="'+S.metaRow+'">'
-            +'<div style="'+S.metaCell+'"><div style="'+S.metaLbl+'">Invoice No.</div><div style="'+S.metaVal+'">'+pInv+'</div></div>'
-            +'<div style="'+S.metaCell+'"><div style="'+S.metaLbl+'">Issue Date</div><div style="'+S.metaVal+'">'+today+'</div></div>'
-            +'<div style="padding:'+pad+' 14px;"><div style="'+S.metaLbl+'">Payment Due</div><div style="'+S.metaVal+'">'+pPayDue+'</div></div>'
-            +'</div>'
-        )
+        // META ROW — always 3-col
+        +'<div style="'+S.metaRow+'">'
+        +'<div style="'+S.metaCell+'"><div style="'+S.metaLbl+'">Invoice No.</div><div style="'+S.metaVal+'">'+pInv+'</div></div>'
+        +'<div style="'+S.metaCell+'"><div style="'+S.metaLbl+'">Issue Date</div><div style="'+S.metaVal+'">'+today+'</div></div>'
+        +'<div style="padding:'+pad+';"><div style="'+S.metaLbl+'">Payment Due</div><div style="'+S.metaVal+'">'+pPayDue+'</div></div>'
+        +'</div>'
 
         // INSURED & POLICY DETAILS
         +'<div style="'+S.secHdr+'">Insured &amp; Policy Details</div>'
@@ -1120,51 +1108,35 @@
         +'</tbody></table>'
 
         // CONDITIONS
-        +(condHTML?'<div style="'+S.secHdr+'">Conditions &amp; Notes</div><div style="padding:'+pad+' '+(isMobile?'10px':'14px')+';">'+condHTML+'</div>':'')
+        +(condHTML?'<div style="'+S.secHdr+'">Conditions &amp; Notes</div><div style="padding:'+pad+' 14px;">'+condHTML+'</div>':'')
 
         // PAYMENT DETAILS — stacked on mobile, two-column on desktop
         +'<div style="'+S.secHdr+'">Payment Details</div>'
-        +(payIntro?'<div style="padding:'+pad+' '+(isMobile?'10px':'14px')+';font-size:'+fsS+';color:#555;font-style:italic;border-bottom:1px solid #e8eef5;">'+payIntro+'</div>':'')
-        +(isMobile
-          // Mobile: stacked blocks
-          ? '<div style="border:1px solid #c0ccd8;margin:0;">'
-            +'<div style="background:#1a2e4a;padding:5px 10px;"><span style="color:#fff;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Bank Transfer</span></div>'
-            +'<div style="padding:7px 10px;">'
-            + bankCol1.map(r=>'<div style="font-size:11px;margin-bottom:3px;line-height:1.45;"><strong>'+r.l+':</strong>&nbsp;'+r.v+'</div>').join('')
-            +'</div>'
-            +(bankCol2.length
-              ? '<div style="background:#1a2e4a;padding:5px 10px;border-top:2px solid #fff;"><span style="color:#fff;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Mobile Money</span></div>'
-                +'<div style="padding:7px 10px;">'
-                + bankCol2.map(r=>'<div style="font-size:11px;margin-bottom:3px;line-height:1.45;"><strong>'+r.l+':</strong>&nbsp;'+r.v+'</div>').join('')
-                +'</div>'
-              : '')
-            +'</div>'
-          // Desktop: side-by-side table
-          : '<table style="width:100%;border-collapse:collapse;">'
-            +'<thead><tr>'
-            +'<th style="background:#1a2e4a;color:#fff;padding:'+padS+' 14px;font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.06em;width:50%;text-align:left;border-right:2px solid #fff;">Bank Transfer</th>'
-            +'<th style="background:#1a2e4a;color:#fff;padding:'+padS+' 14px;font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.06em;width:50%;text-align:left;">Mobile Money</th>'
-            +'</tr></thead>'
-            +'<tbody><tr style="vertical-align:top;">'
-            +'<td style="padding:'+pad+' 14px;border:1px solid #c0ccd8;border-left:none;">'
-            + bankCol1.map(r=>'<div style="font-size:'+fsS+';margin-bottom:3px;line-height:1.45;"><strong>'+r.l+':</strong>&nbsp;'+r.v+'</div>').join('')
-            +'</td>'
-            +'<td style="padding:'+pad+' 14px;border:1px solid #c0ccd8;border-right:none;">'
-            + (bankCol2.length
-                ? bankCol2.map(r=>'<div style="font-size:'+fsS+';margin-bottom:3px;line-height:1.45;"><strong>'+r.l+':</strong>&nbsp;'+r.v+'</div>').join('')
-                : '<span style="font-size:'+fsS+';color:#aaa;font-style:italic;">—</span>')
-            +'</td>'
-            +'</tr></tbody>'
-            +'</table>'
-        )
+        +(payIntro?'<div style="padding:'+pad+' 14px;font-size:'+fsS+';color:#555;font-style:italic;border-bottom:1px solid #e8eef5;">'+payIntro+'</div>':'')
+        +'<table style="width:100%;border-collapse:collapse;">'
+        +'<thead><tr>'
+        +'<th style="background:#1a2e4a;color:#fff;padding:'+padS+' 14px;font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.06em;width:50%;text-align:left;border-right:2px solid #fff;">Bank Transfer</th>'
+        +'<th style="background:#1a2e4a;color:#fff;padding:'+padS+' 14px;font-size:'+fsS+';font-weight:700;text-transform:uppercase;letter-spacing:.06em;width:50%;text-align:left;">Mobile Money</th>'
+        +'</tr></thead>'
+        +'<tbody><tr style="vertical-align:top;">'
+        +'<td style="padding:'+pad+' 14px;border:1px solid #c0ccd8;border-left:none;">'
+        + bankCol1.map(r=>'<div style="font-size:'+fsS+';margin-bottom:3px;line-height:1.45;"><strong>'+r.l+':</strong>&nbsp;'+r.v+'</div>').join('')
+        +'</td>'
+        +'<td style="padding:'+pad+' 14px;border:1px solid #c0ccd8;border-right:none;">'
+        + (bankCol2.length
+            ? bankCol2.map(r=>'<div style="font-size:'+fsS+';margin-bottom:3px;line-height:1.45;"><strong>'+r.l+':</strong>&nbsp;'+r.v+'</div>').join('')
+            : '<span style="font-size:'+fsS+';color:#aaa;font-style:italic;">—</span>')
+        +'</td>'
+        +'</tr></tbody>'
+        +'</table>'
 
         // SIGNATORY
-        +'<div style="padding:'+(isMobile?'6px 10px':'7px 14px')+';border-top:2px solid #E8A020;">'
-        +'<div style="font-size:'+(isMobile?'10.5px':'11.5px')+';font-style:italic;font-weight:700;color:#000;">'+(sigName||'[Quote By]')+(sigRole?' ('+sigRole+')':'')+'</div>'
+        +'<div style="padding:7px 14px;border-top:2px solid #E8A020;">'
+        +'<div style="font-size:11.5px;font-style:italic;font-weight:700;color:#000;">'+(sigName||'[Quote By]')+(sigRole?' ('+sigRole+')':'')+'</div>'
         +'</div>'
 
-        // FOOTER — centred two lines + page number like PDF
-        +'<div style="background:#1a2e4a;padding:'+(isMobile?'10px 12px':'8px 2rem')+';text-align:center;">'
+        // FOOTER
+        +'<div style="'+S.footBar+'">'
         +'<div style="'+S.footTxt+'">'
         + coName+' &bull; Regulated by the National Insurance Commission of Ghana<br>'
         + 'www.vanguardassurance.com &bull; Tel: '+coTel+' &bull; Page 1 of 1'
