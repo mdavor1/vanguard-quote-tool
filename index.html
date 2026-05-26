@@ -360,11 +360,16 @@
       <label>Class of insurance</label>
       <select id="p-class" onchange="updateQuoteRef()">
         <option value="">— Select class —</option>
-        <optgroup label="Fire Policies">
+        <optgroup label="Fire Policies (Commercial)">
           <option>Assets All Risk Policy</option>
           <option>Combined Fire &amp; Theft</option>
           <option>Industrial Fire</option>
           <option>Commercial Fire</option>
+        </optgroup>
+        <optgroup label="Fire Policies (Residential)">
+          <option>Landlords Insurance</option>
+          <option>Tenants Insurance</option>
+          <option>Happy Home Insurance</option>
         </optgroup>
         <optgroup label="General Accident">
           <option>Group Personal Accident</option>
@@ -492,7 +497,7 @@
     <!-- ⑥ CONDITIONS / NOTES — after premium -->
     <div class="sec-hdr"><i class="ti ti-notes"></i> Conditions / notes</div>
     <div class="field">
-      <textarea id="t-notes" rows="4" placeholder="Add one condition per line e.g.&#10;Excess — 10% each and every loss&#10;Subject to satisfactory inspection&#10;Cover commences upon receipt of premium"></textarea>
+      <textarea id="t-notes" rows="4" placeholder="Add one condition per line e.g.&#10;Excess — 10% each and every loss&#10;Subject to satisfactory inspection&#10;No premium, no cover"></textarea>
       <div style="font-size:10px;color:#8a96a3;margin-top:3px;">Each line will appear as a numbered condition on the quote</div>
     </div>
 
@@ -752,6 +757,7 @@
   // Show/hide TSI based on class
   const TSI_BREAKDOWN_CLASSES = [
     'Assets All Risk Policy','Combined Fire & Theft','Industrial Fire','Commercial Fire',
+    'Landlords Insurance','Tenants Insurance','Happy Home Insurance',
     'Boiler & Pressure Plant Insurance','Electronic Equipment Insurance',
     'LOP following Machinery Breakdown/BPI/EEQ','Thermal Risks and Machinery Loss of Profit',
     'Construction Policies','Contractors All Risk Insurance','Erection All Risk Insurance',
@@ -840,6 +846,9 @@
     'Combined Fire & Theft':                      'CF',
     'Industrial Fire':                            'IF',
     'Commercial Fire':                            'CO',
+    'Landlords Insurance':                        'LL',
+    'Tenants Insurance':                          'TN',
+    'Happy Home Insurance':                       'HH',
     // General Accident
     'Group Personal Accident':                    'GP',
     'Burglary (Business Premises)':               'BU',
@@ -983,7 +992,13 @@
       const totalPrem  = rawPrem + vatAmt + extraTotal;
 
       // ── Notes as numbered list
-      const notesLines = tNotes ? tNotes.split('\n').map(l=>l.trim()).filter(Boolean) : [];
+      const DEFAULT_CONDITION = 'No premium, no cover';
+      const notesLines = tNotes
+        ? tNotes.split('\n').map(l=>l.trim()).filter(Boolean)
+        : [];
+      if (!notesLines.some(l => l.toLowerCase().includes('no premium'))) {
+        notesLines.unshift(DEFAULT_CONDITION);
+      }
 
       // ── Fixed layout — identical on all screen sizes (mobile zooms to read)
       const pad  = '5px 14px';
