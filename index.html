@@ -438,7 +438,15 @@
       <input id="p-risk" placeholder="e.g. Office building and contents, Suzuki Grand Vitara GR-1234" />
     </div>
     <div class="field">
-      <label>Total sum insured (GHS)</label>
+      <label>Currency</label>
+      <select id="p-currency" onchange="updateCurrencyLabels()">
+        <option value="GHS">GHS — Ghana Cedi</option>
+        <option value="USD">USD — US Dollar</option>
+        <option value="EUR">EUR — Euro</option>
+      </select>
+    </div>
+    <div class="field">
+      <label id="lbl-sum">Total sum insured (GHS)</label>
       <input id="p-sum" type="text" placeholder="e.g. 10,500,000.00" oninput="fmtInput(this)" />
     </div>
 
@@ -466,7 +474,7 @@
     <!-- ⑤ PREMIUM -->
     <div class="sec-hdr"><i class="ti ti-receipt-2"></i> Premium</div>
     <div class="field">
-      <label>Gross premium (GHS)</label>
+      <label id="lbl-prem">Gross premium (GHS)</label>
       <input id="p-prem" type="text" placeholder="e.g. 89,250.00" oninput="fmtInput(this); calcVAT()" />
     </div>
     <div id="vat-preview" style="display:none;background:#f4f6f8;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin-top:4px;font-size:12px;color:#1a2e4a;">
@@ -733,9 +741,9 @@
       + '</div>'
       + '<input id="tsi-l-' + id + '" placeholder="Description e.g. Buildings, Contents, Plant & Equipment" value="' + (label||'') + '" style="width:100%;font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;margin-bottom:5px;box-sizing:border-box;">'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
-      + '<div><label style="font-size:10px;color:#6b7d8f;display:block;margin-bottom:2px;font-weight:500;">Sum Insured (GHS)</label>'
+      + '<div><label style="font-size:10px;color:#6b7d8f;display:block;margin-bottom:2px;font-weight:500;" class="tsi-cur-lbl">Sum Insured (' + getCurrency() + ')</label>'
       + '<input id="tsi-v-' + id + '" placeholder="e.g. 5,000,000.00" value="' + (val||'') + '" style="width:100%;font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;box-sizing:border-box;" oninput="fmtInput(this)"></div>'
-      + '<div><label style="font-size:10px;color:#6b7d8f;display:block;margin-bottom:2px;font-weight:500;">Premium (GHS)</label>'
+      + '<div><label style="font-size:10px;color:#6b7d8f;display:block;margin-bottom:2px;font-weight:500;" class="tsi-cur-lbl">Premium (' + getCurrency() + ')</label>'
       + '<input id="tsi-p-' + id + '" placeholder="e.g. 12,500.00" value="" style="width:100%;font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;box-sizing:border-box;" oninput="fmtInput(this)"></div>'
       + '</div>';
     const container = document.getElementById('tsi-rows-container');
@@ -801,6 +809,28 @@
   }
 
   // ── FIRE LEVY AUTO-ADD ─────────────────────────────────────────────────
+  // ── Currency helpers
+  const CURRENCY_SYMBOLS = { GHS: 'GHS', USD: 'USD', EUR: 'EUR' };
+
+  function getCurrency() {
+    const el = document.getElementById('p-currency');
+    return el ? el.value : 'GHS';
+  }
+
+  function updateCurrencyLabels() {
+    const cur = getCurrency();
+    const sumLbl  = document.getElementById('lbl-sum');
+    const premLbl = document.getElementById('lbl-prem');
+    if (sumLbl)  sumLbl.textContent  = 'Total sum insured (' + cur + ')';
+    if (premLbl) premLbl.textContent = 'Gross premium (' + cur + ')';
+    // refresh VAT preview with new symbol
+    calcVAT();
+    // refresh TSI row labels
+    document.querySelectorAll('.tsi-cur-lbl').forEach(el => {
+      el.textContent = el.textContent.replace(/GHS|USD|EUR/, cur);
+    });
+  }
+
   function calcVAT() {
     const pClass   = g('p-class');
     const rawPrem  = parseFloat(String(g('p-prem')).replace(/,/g,'')) || 0;
@@ -812,11 +842,12 @@
     const vatAmt    = isVatable ? rawPrem * VAT_RATE : 0;
     const total     = rawPrem + vatAmt;
 
-    document.getElementById('vat-gross').textContent = 'GHS ' + fmt(rawPrem);
+    const cur = getCurrency();
+    document.getElementById('vat-gross').textContent = cur + ' ' + fmt(rawPrem);
     document.getElementById('vat-tax').textContent   = isVatable
-      ? 'GHS ' + fmt(vatAmt)
+      ? cur + ' ' + fmt(vatAmt)
       : 'Exempt';
-    document.getElementById('vat-total').textContent = 'GHS ' + fmt(total);
+    document.getElementById('vat-total').textContent = cur + ' ' + fmt(total);
     preview.style.display = 'block';
   }
 
@@ -927,6 +958,7 @@
       const pClass   = g('p-class')   || '';
       const pSum     = g('p-sum')     || '';
       const pPrem    = g('p-prem')    || '';
+      const pCur     = getCurrency();
       const pStart   = g('p-start');
       const pEnd     = g('p-end');
       const pRisk    = g('p-risk');
@@ -1085,7 +1117,7 @@
         +'</div>'
 
         // BANNER
-        +'<div style="'+S.banner+'"><span style="'+S.bannerT+'">'+(pClass||'Insurance')+'</span> <span style="'+S.bannerD+'">&bull; QUOTATION</span></div>'
+        +'<div style="'+S.banner+'"><span style="'+S.bannerT+'">'+(pClass||'Insurance')+'</span> <span style="'+S.bannerD+'">&bull; QUOTATION &bull; '+pCur+'</span></div>'
 
         // META ROW — always 3-col
         +'<div style="'+S.metaRow+'">'
@@ -1112,14 +1144,14 @@
         +'<table style="'+S.tbl+'">'
         +'<thead><tr>'
         +'<th style="'+S.thNav+';width:50%;">Subject Matter Insured</th>'
-        +'<th style="'+S.thNavR+';width:25%;">Sum Insured (GHS)</th>'
-        +'<th style="'+S.thNavR+';width:25%;">Premium (GHS)</th>'
+        +'<th style="'+S.thNavR+';width:25%;">Sum Insured ('+pCur+')</th>'
+        +'<th style="'+S.thNavR+';width:25%;">Premium ('+pCur+')</th>'
         +'</tr></thead>'
         +'<tbody>'
         +tsiHTML
         +xPremHTML
         +vatHTML
-        +'<tr><td colspan="2" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td><td style="'+S.tdTotal+'">GHS '+fmt(totalPrem)+'</td></tr>'
+        +'<tr><td colspan="2" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td><td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPrem)+'</td></tr>'
         +'</tbody></table>'
 
         // CONDITIONS
