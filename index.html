@@ -1005,6 +1005,14 @@
         }
       }
 
+      // ── Guard: block save if quote reference is missing or malformed
+      if (!pInv || pInv.includes('—') || pInv.trim() === '') {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
+        alert('⚠️  Cannot save to log: Quote Reference is missing.\n\nPlease make sure a Policy Class is selected before generating the quote.');
+        return;
+      }
+
       // ── Log quote
       await logQuoteToSheet({ quoteRef:pInv, date:new Date().toISOString(), officer:sigName, client:clName, policyClass:pClass, sumInsured:String(pSum).replace(/,/g,''), premium:String(pPrem).replace(/,/g,''), branch:coBranch, clientEmail:'' });
 
@@ -1081,7 +1089,7 @@
 
       // Bank columns
       const bankRows = getBankRows();
-      const splitAt  = bankRows.length >= 8 ? 5 : Math.ceil(bankRows.length/2);
+      const splitAt  = bankRows.length >= 7 ? 5 : Math.ceil(bankRows.length/2);
       const bankCol1 = bankRows.slice(0,splitAt);
       const bankCol2 = bankRows.slice(splitAt);
 
@@ -1306,14 +1314,13 @@
   // ── PREFILL ──────────────────────────────────────────────
   (function prefill() {
     document.getElementById('p-date').value = new Date().toISOString().slice(0,10);
-    addBankField('Bank', 'Stanbic Bank Ghana');
-    addBankField('Account Name', 'Vanguard Assurance Company Limited');
-    addBankField('Account No.', '9040002318223');
-    addBankField('Branch', 'Accra Main');
-    addBankField('Branch Code', '190101');
-    addBankField('Provider', 'MTN MoMo');
-    addBankField('Merchant', 'Vanguard Assurance Co. Ltd.');
-    addBankField('Number', '0245 093 045');
+    addBankField('Bank',         'Ecobank Ghana');
+    addBankField('Account Name', 'Vanguard Assurance Co. Ltd.');
+    addBankField('Account No.',  '1441001519859');
+    addBankField('Currency',     'Cedi');
+    addBankField('Swift Code',   'ECOCGHAC');
+    addBankField('Sort Code',    '130101');
+    addBankField('Branch',       'Head Office, Ridge');
   })();
 
 </script>
