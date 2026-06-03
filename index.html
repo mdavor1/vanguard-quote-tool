@@ -339,8 +339,8 @@
     <!-- ① SIGNATORY -->
     <div class="sec-hdr"><i class="ti ti-user-edit"></i> Signatory</div>
     <div class="g2">
-      <div class="field"><label>Quoted by</label><input id="sig-name" placeholder="e.g. Enoch Obeng" /></div>
-      <div class="field"><label>Role / title</label><input id="sig-role" placeholder="e.g. Corporate Distribution" /></div>
+      <div class="field"><label>Quoted by <span style="color:#c53030;">*</span></label><input id="sig-name" placeholder="e.g. Enoch Obeng" required /></div>
+      <div class="field"><label>Role / title <span style="color:#c53030;">*</span></label><input id="sig-role" placeholder="e.g. Corporate Distribution" required /></div>
     </div>
 
     <!-- ② CLIENT -->
@@ -419,12 +419,7 @@
     </div>
     <div class="g2">
       <div class="field"><label>Payment due</label>
-        <select id="p-paydue">
-          <option value="On receipt">On receipt</option>
-          <option value="30 days">30 days</option>
-          <option value="60 days">60 days</option>
-          <option value="90 days">90 days</option>
-        </select>
+        <input id="p-paydue" value="On receipt" readonly style="background:#f4f6f8;color:#5a6a7a;cursor:default;" />
       </div>
       <div class="field"><label>Excess / Deductible</label>
         <input id="p-excess" type="text" placeholder="e.g. 10% each and every loss, min. GHS 500" />
@@ -514,8 +509,18 @@
     <div class="field">
       <textarea id="pay-intro" rows="2">Kindly use the details below for bank payments or issue a cheque in the name of Vanguard Assurance Co. Ltd to enable us issue policy document.</textarea>
     </div>
-    <div id="bank-container"></div>
-    <button class="add-btn" onclick="addBankField()"><i class="ti ti-plus"></i> Add bank detail row</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#1a2e4a;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Bank Transfer</div>
+        <div id="bank-container"></div>
+        <button class="add-btn" onclick="addBankField('bank')"><i class="ti ti-plus"></i> Add row</button>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#1a2e4a;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Mobile Money</div>
+        <div id="momo-container"></div>
+        <button class="add-btn" onclick="addBankField('momo')"><i class="ti ti-plus"></i> Add row</button>
+      </div>
+    </div>
 
     <!-- ⑧ ACTIONS — Download only -->
     <button class="gen-btn" onclick="generateQuote()" style="margin-top:1.25rem;"><i class="ti ti-eye"></i> Generate quote</button>
@@ -670,24 +675,28 @@
   function closeModal() { document.getElementById('dup-modal').classList.remove('active'); }
 
   // ── BANK FIELD HELPERS ──────────────────────────────────
-  function addBankField(label, val) {
+  function addBankField(target, label, val) {
+    if (target !== 'bank' && target !== 'momo') {
+      val = label; label = target; target = 'bank';
+    }
     bankCount++;
     const id = bankCount;
+    const prefix = target === 'momo' ? 'mrow' : 'brow';
     const wrap = document.createElement('div');
     wrap.className = 'bank-row';
-    wrap.id = 'brow-' + id;
+    wrap.id = prefix + '-' + id;
     wrap.innerHTML = `
       <div class="bank-row-grid">
-        <input id="bk-l-${id}" placeholder="Label (e.g. Bank name)" value="${label||''}" style="font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;outline:none;width:100%;" />
+        <input id="bk-l-${id}" placeholder="Label" value="${label||''}" style="font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;outline:none;width:100%;" />
         <input id="bk-v-${id}" placeholder="Value" value="${val||''}" style="font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;outline:none;width:100%;" />
       </div>
-      <button class="rm-btn" onclick="removeBankRow(${id})"><i class="ti ti-x"></i></button>
+      <button class="rm-btn" onclick="removeBankRow('${prefix}-${id}')"><i class="ti ti-x"></i></button>
     `;
-    document.getElementById('bank-container').appendChild(wrap);
+    document.getElementById(target === 'momo' ? 'momo-container' : 'bank-container').appendChild(wrap);
   }
 
-  function removeBankRow(id) {
-    const el = document.getElementById('brow-' + id);
+  function removeBankRow(rowId) {
+    const el = document.getElementById(rowId);
     if (el) el.remove();
   }
 
@@ -695,6 +704,17 @@
     const rows = [];
     document.querySelectorAll('[id^="brow-"]').forEach(row => {
       const id = row.id.replace('brow-','');
+      const l = document.getElementById('bk-l-'+id)?.value.trim();
+      const v = document.getElementById('bk-v-'+id)?.value.trim();
+      if (l || v) rows.push({l: l||'', v: v||''});
+    });
+    return rows;
+  }
+
+  function getMomoRows() {
+    const rows = [];
+    document.querySelectorAll('[id^="mrow-"]').forEach(row => {
+      const id = row.id.replace('mrow-','');
       const l = document.getElementById('bk-l-'+id)?.value.trim();
       const v = document.getElementById('bk-v-'+id)?.value.trim();
       if (l || v) rows.push({l: l||'', v: v||''});
@@ -946,6 +966,17 @@
     btn.disabled = true;
     btn.innerHTML = '<i class="ti ti-loader ti-spin"></i> Checking...';
     try {
+      const _sigName = (document.getElementById('sig-name')?.value || '').trim();
+      const _sigRole = (document.getElementById('sig-role')?.value || '').trim();
+      if (!_sigName || !_sigRole) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
+        const missing = [!_sigName && '"Quoted by"', !_sigRole && '"Role / Title"'].filter(Boolean).join(' and ');
+        alert('\u26a0\ufe0f  Please fill in the required field(s): ' + missing);
+        if (!_sigName) document.getElementById('sig-name').focus();
+        else document.getElementById('sig-role').focus();
+        return;
+      }
       const coName   = g('co-name')   || 'Vanguard Assurance Company Limited';
       const coTel    = g('co-tel');
       const coWeb    = g('co-web');
@@ -1005,16 +1036,9 @@
         }
       }
 
-      // ── Guard: block save if quote reference is missing or malformed
-      if (!pInv || pInv.includes('—') || pInv.trim() === '') {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
-        alert('⚠️  Cannot save to log: Quote Reference is missing.\n\nPlease make sure a Policy Class is selected before generating the quote.');
-        return;
-      }
-
       // ── Log quote
-      await logQuoteToSheet({ quoteRef:pInv, date:new Date().toISOString(), officer:sigName, client:clName, policyClass:pClass, sumInsured:String(pSum).replace(/,/g,''), premium:String(pPrem).replace(/,/g,''), branch:coBranch, clientEmail:'' });
+      logQuoteToSheet({ quoteRef:pInv, date:new Date().toISOString(), officer:sigName, client:clName, policyClass:pClass, sumInsured:String(pSum).replace(/,/g,''), premium:String(pPrem).replace(/,/g,''), branch:coBranch, clientEmail:'' })
+        .catch(e => console.warn('Sheet log non-fatal:', e));
 
       btn.disabled = false;
       btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
@@ -1088,10 +1112,8 @@
       };
 
       // Bank columns
-      const bankRows = getBankRows();
-      const splitAt  = bankRows.length >= 7 ? 5 : Math.ceil(bankRows.length/2);
-      const bankCol1 = bankRows.slice(0,splitAt);
-      const bankCol2 = bankRows.slice(splitAt);
+      const bankCol1 = getBankRows();
+      const bankCol2 = getMomoRows();
 
       // TSI table rows
       // TSI breakdown: each item shows its own sum insured and premium
@@ -1187,6 +1209,7 @@
 
         // SIGNATORY
         +'<div style="padding:7px 14px;border-top:2px solid #E8A020;">'
+        +'<div style="font-size:10px;color:#555;margin-bottom:2px;">Quoted By:</div>'
         +'<div style="font-size:11.5px;font-style:italic;font-weight:700;color:#000;">'+(sigName||'[Quote By]')+(sigRole?' ('+sigRole+')':'')+'</div>'
         +'</div>'
 
@@ -1312,16 +1335,21 @@
   }
 
   // ── PREFILL ──────────────────────────────────────────────
-  (function prefill() {
+  function runPrefill() {
     document.getElementById('p-date').value = new Date().toISOString().slice(0,10);
-    addBankField('Bank',         'Ecobank Ghana');
-    addBankField('Account Name', 'Vanguard Assurance Co. Ltd.');
-    addBankField('Account No.',  '1441001519859');
-    addBankField('Currency',     'Cedi');
-    addBankField('Swift Code',   'ECOCGHAC');
-    addBankField('Sort Code',    '130101');
-    addBankField('Branch',       'Head Office, Ridge');
-  })();
+    addBankField('bank', 'Bank',         'Ecobank Ghana, Head Office Branch');
+    addBankField('bank', 'Account Name', 'Vanguard Assurance Co. Ltd.');
+    addBankField('bank', 'Account No.',  '1441001519859');
+    addBankField('bank', 'Currency',     'Cedi');
+    addBankField('bank', 'Swift Code',   'ECOCGHAC');
+    addBankField('momo', 'Name',         'Vanguard Assurance');
+    addBankField('momo', 'Momo Number',  '0245093045');
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runPrefill);
+  } else {
+    runPrefill();
+  }
 
 </script>
 </body>
