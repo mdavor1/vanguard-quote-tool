@@ -358,7 +358,7 @@
     </div>
     <div class="field">
       <label>Class of insurance</label>
-      <select id="p-class" onchange="updateQuoteRef()">
+      <select id="p-class" onchange="onClassChange()">
         <option value="">— Select class —</option>
         <optgroup label="Fire Policies (Commercial)">
           <option>Assets All Risk Policy</option>
@@ -445,6 +445,14 @@
       <input id="p-sum" type="text" placeholder="e.g. 10,500,000.00" oninput="fmtInput(this)" />
     </div>
 
+    <div class="field">
+      <label id="lbl-basic-prem">Basic premium (GHS)</label>
+      <input id="p-basic-prem" type="text" placeholder="e.g. 3,000.00" oninput="fmtInput(this); calcGrossPrem()" />
+      <div id="basic-prem-note" style="display:none;font-size:10px;color:#2E75B6;margin-top:3px;">
+        <i class="ti ti-info-circle"></i> For Workmen Compensation, Gross Premium = Basic Premium + Add-on premiums below.
+      </div>
+    </div>
+
     <!-- TSI / Subject Matter Breakdown — available for all classes -->
     <div id="tsi-breakdown-section">
       <div class="field">
@@ -470,7 +478,7 @@
     <div class="sec-hdr"><i class="ti ti-receipt-2"></i> Premium</div>
     <div class="field">
       <label id="lbl-prem">Gross premium (GHS)</label>
-      <input id="p-prem" type="text" placeholder="e.g. 89,250.00" oninput="fmtInput(this); calcVAT()" />
+      <input id="p-prem" type="text" placeholder="Calculated automatically" readonly style="background:#f4f6f8;color:#1a2e4a;font-weight:600;cursor:default;" />
     </div>
     <div id="vat-preview" style="display:none;background:#f4f6f8;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin-top:4px;font-size:12px;color:#1a2e4a;">
       <div style="display:flex;justify-content:space-between;padding:2px 0;">
@@ -746,6 +754,36 @@
     return BOND_CLASSES.includes(pClass);
   }
 
+  const WC_CLASS = "Workmen Compensation";
+
+  function isWCClass(pClass) {
+    return pClass === WC_CLASS;
+  }
+
+  // Recalculate gross premium whenever basic premium or add-on premiums change.
+  // For WC: gross = basic + sum of add-on premiums.
+  // For all others: gross = basic (add-ons are display-only breakdown).
+  function calcGrossPrem() {
+    const pClass    = g('p-class');
+    const basicRaw  = parseFloat(String(g('p-basic-prem')).replace(/,/g,'')) || 0;
+    const note      = document.getElementById('basic-prem-note');
+
+    if (isWCClass(pClass)) {
+      if (note) note.style.display = 'block';
+      const addonTotal = getTSIRows().reduce((s,r) => {
+        return s + (parseFloat(String(r.p||0).replace(/,/g,'')) || 0);
+      }, 0);
+      const gross = basicRaw + addonTotal;
+      const grossEl = document.getElementById('p-prem');
+      if (grossEl) { grossEl.value = gross > 0 ? gross.toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2}) : ''; }
+    } else {
+      if (note) note.style.display = 'none';
+      const grossEl = document.getElementById('p-prem');
+      if (grossEl) { grossEl.value = basicRaw > 0 ? basicRaw.toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2}) : ''; }
+    }
+    calcVAT();
+  }
+
   // ── TSI BREAKDOWN ──────────────────────────────────────────────────────
   let tsiCount = 0;
   function addTSIRow(label, val) {
@@ -767,6 +805,11 @@
       + '<input id="tsi-p-' + id + '" placeholder="e.g. 12,500.00" value="" style="width:100%;font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;box-sizing:border-box;" oninput="fmtInput(this)"></div>'
       + '</div>';
     const container = document.getElementById('tsi-rows-container');
+    // Re-run gross premium calc when any add-on premium input changes (for WC)
+    wrap.querySelectorAll && setTimeout(() => {
+      const pInput = document.getElementById('tsi-p-' + id);
+      if (pInput) pInput.addEventListener('input', () => { fmtInput(pInput); calcGrossPrem(); });
+    }, 0);
     if (container) container.appendChild(wrap);
   }
   function getTSIRows() {
@@ -839,13 +882,13 @@
 
   function updateCurrencyLabels() {
     const cur = getCurrency();
-    const sumLbl  = document.getElementById('lbl-sum');
-    const premLbl = document.getElementById('lbl-prem');
-    if (sumLbl)  sumLbl.textContent  = 'Total sum insured (' + cur + ')';
-    if (premLbl) premLbl.textContent = 'Gross premium (' + cur + ')';
-    // refresh VAT preview with new symbol
+    const sumLbl   = document.getElementById('lbl-sum');
+    const basicLbl = document.getElementById('lbl-basic-prem');
+    const premLbl  = document.getElementById('lbl-prem');
+    if (sumLbl)   sumLbl.textContent   = 'Total sum insured (' + cur + ')';
+    if (basicLbl) basicLbl.textContent = 'Basic premium (' + cur + ')';
+    if (premLbl)  premLbl.textContent  = 'Gross premium (' + cur + ')';
     calcVAT();
-    // refresh TSI row labels
     document.querySelectorAll('.tsi-cur-lbl').forEach(el => {
       el.textContent = el.textContent.replace(/GHS|USD|EUR/, cur);
     });
@@ -950,6 +993,14 @@
     return `${prefix}/${yr}/${mm}${dd}${hh}${min}`;
   }
 
+  function onClassChange() {
+    updateQuoteRef();
+    calcGrossPrem();
+    const pClass = g('p-class');
+    const note = document.getElementById('basic-prem-note');
+    if (note) note.style.display = isWCClass(pClass) ? 'block' : 'none';
+  }
+
   function updateQuoteRef() {
     const pClass = g('p-class');
     const ref = genQuoteRef(pClass);
@@ -1044,16 +1095,24 @@
       btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
 
       // ── Premium calcs
-      const rawPrem    = parseFloat(String(pPrem).replace(/,/g,'')) || 0;
-      const isVatable  = pClass && !isBondClass(pClass);
-      const vatAmt     = isVatable ? rawPrem * VAT_RATE : 0;
+      const basicPrem  = parseFloat(String(g('p-basic-prem')).replace(/,/g,'')) || 0;
       const tsiRows    = getTSIRows();
       const xPremRows  = getExtraPremRows();
+      const isWC       = isWCClass(pClass);
+
+      // For WC: gross = basic + add-on premiums. For all others: gross = basic only.
+      const tsiAddonTotal = tsiRows.reduce((s,r)=>s+(parseFloat(String(r.p||0).replace(/,/g,''))||0),0);
+      const grossPrem  = isWC ? basicPrem + tsiAddonTotal : basicPrem;
+
+      const isVatable  = pClass && !isBondClass(pClass);
+      const vatAmt     = isVatable ? grossPrem * VAT_RATE : 0;
 
       let allExtraRows = [...xPremRows];
-
       const extraTotal = allExtraRows.reduce((s,r)=>s+(r.v||0),0);
-      const totalPrem  = rawPrem + vatAmt + extraTotal;
+      const totalPrem  = grossPrem + vatAmt + extraTotal;
+
+      // rawPrem kept for compatibility with any downstream references
+      const rawPrem    = grossPrem;
 
       // ── Notes as numbered list
       const DEFAULT_CONDITION = 'No premium, no cover';
@@ -1118,17 +1177,40 @@
       // TSI table rows
       // TSI breakdown: each item shows its own sum insured and premium
       // Sum the TSI premiums; if total matches rawPrem use it, else show rawPrem in total row
-      const tsiPremTotal = tsiRows.reduce((s,r)=>s+(parseFloat(String(r.p||0).replace(/,/g,''))||0),0);
-      const tsiHTML = tsiRows.length > 0
-        // Subject matter row first, then each breakdown item indented, then Total
-        ? '<tr><td style="'+S.tdBold+'" colspan="3">'+(pRisk||'—')+'</td></tr>'
-          + tsiRows.map(r=>{
-            const tsiSum  = r.v ? fmt(parseFloat(String(r.v).replace(/,/g,''))) : '—';
-            const tsiPrem = r.p ? fmt(parseFloat(String(r.p).replace(/,/g,''))) : '—';
-            return '<tr><td style="'+S.td+';padding-left:22px;">&#8627; '+r.l+'</td><td style="'+S.tdR+'">'+tsiSum+'</td><td style="'+S.tdR+'">'+tsiPrem+'</td></tr>';
-          }).join('')
-          + '<tr><td style="'+S.tdBold+'">Total</td><td style="'+S.tdBoldR+'">'+(fmt(pSum)||'—')+'</td><td style="'+S.tdBoldR+'">'+(tsiPremTotal>0?fmt(tsiPremTotal):fmt(rawPrem))+'</td></tr>'
-        : '<tr><td style="'+S.tdBold+'">'+(pRisk||'—')+'</td><td style="'+S.tdBoldR+'">'+(fmt(pSum)||'—')+'</td><td style="'+S.tdBoldR+'">'+fmt(rawPrem)+'</td></tr>';
+      const tsiHTML = (() => {
+        // Main subject matter row — always shown
+        const mainRow = '<tr><td style="'+S.tdBold+'">'+(pRisk||'—')+'</td>'
+          +'<td style="'+S.tdBoldR+'">'+(fmt(pSum)||'—')+'</td>'
+          +'<td style="'+S.tdBoldR+'">'+fmt(basicPrem)+'</td></tr>';
+
+        if (tsiRows.length === 0) return mainRow;
+
+        // WC: normal styled rows (they add to gross, shown with sub-total)
+        // Other classes: muted italic rows (reference only, not in total)
+        const addonStyle = isWC
+          ? { tr: '', td: S.td+';padding-left:20px;', tdR: S.tdR }
+          : { tr: 'background:#f8f9fb;', td: S.td+';padding-left:20px;font-style:italic;color:#6b7d8f;font-size:10.5px;border-color:#dde3ea;', tdR: S.tdR+';font-style:italic;color:#6b7d8f;font-size:10.5px;border-color:#dde3ea;' };
+
+        const addonRows = tsiRows.map(r => {
+          const tsiSum  = r.v ? fmt(parseFloat(String(r.v).replace(/,/g,''))) : '—';
+          const tsiPrem = r.p ? fmt(parseFloat(String(r.p).replace(/,/g,''))) : '—';
+          return '<tr style="'+addonStyle.tr+'">'
+            +'<td style="'+addonStyle.td+'">&#8627; '+r.l+'</td>'
+            +'<td style="'+addonStyle.tdR+'">'+tsiSum+'</td>'
+            +'<td style="'+addonStyle.tdR+'">'+tsiPrem+'</td></tr>';
+        }).join('');
+
+        if (isWC) {
+          // WC: add-ons contribute to gross — show sub-total row
+          return mainRow + addonRows
+            + '<tr><td style="'+S.tdBold+'">Sub-Total</td>'
+            +'<td style="'+S.tdBoldR+'">—</td>'
+            +'<td style="'+S.tdBoldR+'">'+fmt(grossPrem)+'</td></tr>';
+        } else {
+          // Other classes: add-ons are muted reference rows — no sub-total
+          return mainRow + addonRows;
+        }
+      })();
 
       const xPremHTML = allExtraRows.map(r=>'<tr><td colspan="2" style="'+S.td+'">'+r.l+'</td><td style="'+S.tdR+'">'+fmt(r.v)+'</td></tr>').join('');
       const vatHTML   = isVatable
