@@ -542,7 +542,10 @@
   <div class="preview-panel">
     <div class="prev-topbar">
       <h2>Quote preview</h2>
-      <button class="copy-btn" onclick="copyText()" id="copy-btn"><i class="ti ti-copy"></i> Copy as text</button>
+      <div style="display:flex;gap:8px;">
+        <button class="copy-btn" onclick="openMyQuotes()" id="my-quotes-btn" style="background:#1a2e4a;color:#fff;border-color:#1a2e4a;"><i class="ti ti-history"></i> My Quotes</button>
+        <button class="copy-btn" onclick="copyText()" id="copy-btn"><i class="ti ti-copy"></i> Copy as text</button>
+      </div>
     </div>
     <div id="quote-output">
       <div class="placeholder">
@@ -637,7 +640,22 @@
       await fetch(APPS_SCRIPT_URL, {
         method: 'POST', mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ quote: quoteData })
+        body: JSON.stringify({
+          type:  'quote',
+          quote: {
+            quoteRef:    quoteData.quoteRef,
+            date:        quoteData.date,
+            officer:     quoteData.officer,
+            client:      quoteData.client,
+            policyClass: quoteData.policyClass,
+            sumInsured:  String(quoteData.sumInsured).replace(/,/g,''),
+            premium:     String(quoteData.premium).replace(/,/g,''),
+            branch:      quoteData.branch     || '',
+            clientEmail: quoteData.clientEmail|| '',
+            action:      quoteData.action      || 'append',
+            lastUpdated: quoteData.lastUpdated || ''
+          }
+        })
       });
     } catch(e) { console.warn('Sheet write failed:', e); }
   }
@@ -786,7 +804,7 @@
 
   // ── TSI BREAKDOWN ──────────────────────────────────────────────────────
   let tsiCount = 0;
-  function addTSIRow(label, val) {
+  function addTSIRow(label, val, prem) {
     tsiCount++;
     const id = tsiCount;
     const wrap = document.createElement('div');
@@ -802,7 +820,7 @@
       + '<div><label style="font-size:10px;color:#6b7d8f;display:block;margin-bottom:2px;font-weight:500;" class="tsi-cur-lbl">Sum Insured (' + getCurrency() + ')</label>'
       + '<input id="tsi-v-' + id + '" placeholder="e.g. 5,000,000.00" value="' + (val||'') + '" style="width:100%;font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;box-sizing:border-box;" oninput="fmtInput(this)"></div>'
       + '<div><label style="font-size:10px;color:#6b7d8f;display:block;margin-bottom:2px;font-weight:500;" class="tsi-cur-lbl">Premium (' + getCurrency() + ')</label>'
-      + '<input id="tsi-p-' + id + '" placeholder="e.g. 12,500.00" value="" style="width:100%;font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;box-sizing:border-box;" oninput="fmtInput(this)"></div>'
+      + '<input id="tsi-p-' + id + '" placeholder="e.g. 12,500.00" value="' + (prem||'') + '" style="width:100%;font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-family:Inter,sans-serif;box-sizing:border-box;" oninput="fmtInput(this)"></div>'
       + '</div>';
     const container = document.getElementById('tsi-rows-container');
     // Re-run gross premium calc when any add-on premium input changes (for WC)
@@ -1001,6 +1019,8 @@
     if (note) note.style.display = isWCClass(pClass) ? 'block' : 'none';
   }
 
+  function resetEditFlag() { _editingExistingQuote = false; }
+
   function updateQuoteRef() {
     const pClass = g('p-class');
     const ref = genQuoteRef(pClass);
@@ -1088,8 +1108,22 @@
       }
 
       // ── Log quote
-      logQuoteToSheet({ quoteRef:pInv, date:new Date().toISOString(), officer:sigName, client:clName, policyClass:pClass, sumInsured:String(pSum).replace(/,/g,''), premium:String(pPrem).replace(/,/g,''), branch:coBranch, clientEmail:'' })
-        .catch(e => console.warn('Sheet log non-fatal:', e));
+      const _now = new Date().toISOString();
+      logQuoteToSheet({
+        quoteRef:    pInv,
+        date:        _now,
+        officer:     sigName,
+        client:      clName,
+        policyClass: pClass,
+        sumInsured:  String(pSum).replace(/,/g,''),
+        premium:     String(pPrem).replace(/,/g,''),
+        branch:      coBranch,
+        clientEmail: '',
+        action:      _editingExistingQuote ? 'update' : 'append',
+        lastUpdated: _editingExistingQuote ? _now : ''
+      }).catch(e => console.warn('Sheet log non-fatal:', e));
+      // After saving, mark as existing (subsequent regenerations = updates)
+      _editingExistingQuote = true;
 
       btn.disabled = false;
       btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
@@ -1307,6 +1341,9 @@
 
         +'</div>';
 
+      // Save full form state so this quote can be loaded and edited later
+      saveFormState();
+
     } catch(err) {
       console.error('generateQuote error:', err);
       btn.disabled = false;
@@ -1435,6 +1472,218 @@
     runPrefill();
   }
 
+
+  // ══════════════════════════════════════════════════════════════════════
+  // MY QUOTES — full form state save / load / manage
+  // ══════════════════════════════════════════════════════════════════════
+  const MQ_KEY = 'vanguard_saved_quotes';
+  let _editingExistingQuote = false;   // true when form was loaded via Load & Edit
+
+  function captureFormState() {
+    // TSI breakdown rows
+    const tsiRows = [];
+    document.querySelectorAll('[id^="tsi-"]').forEach(row => {
+      if (!/^tsi-\d+$/.test(row.id)) return;   // skip tsi-l-N, tsi-v-N, tsi-p-N inputs
+      const id = row.id.replace('tsi-','');
+      tsiRows.push({
+        l: document.getElementById('tsi-l-'+id)?.value || '',
+        v: document.getElementById('tsi-v-'+id)?.value || '',
+        p: document.getElementById('tsi-p-'+id)?.value || ''
+      });
+    });
+    // Bank rows
+    const bankRows = [];
+    document.querySelectorAll('[id^="brow-"]').forEach(row => {
+      const id = row.id.replace('brow-','');
+      bankRows.push({ l: document.getElementById('bk-l-'+id)?.value||'', v: document.getElementById('bk-v-'+id)?.value||'' });
+    });
+    // Momo rows
+    const momoRows = [];
+    document.querySelectorAll('[id^="mrow-"]').forEach(row => {
+      const id = row.id.replace('mrow-','');
+      momoRows.push({ l: document.getElementById('bk-l-'+id)?.value||'', v: document.getElementById('bk-v-'+id)?.value||'' });
+    });
+    // Extra premium rows
+    const xpRows = [];
+    for (let i = 1; i <= xPremCount; i++) {
+      const el = document.getElementById('xp-'+i);
+      if (!el) continue;
+      xpRows.push({ l: document.getElementById('xp-l-'+i)?.value||'', v: document.getElementById('xp-v-'+i)?.value||'' });
+    }
+    return {
+      savedAt:    new Date().toISOString(),
+      pInv:       document.getElementById('p-inv')?.value        || '',
+      pDate:      document.getElementById('p-date')?.value       || '',
+      pClass:     document.getElementById('p-class')?.value      || '',
+      pRisk:      document.getElementById('p-risk')?.value       || '',
+      pSum:       document.getElementById('p-sum')?.value        || '',
+      pBasicPrem: document.getElementById('p-basic-prem')?.value || '',
+      pPrem:      document.getElementById('p-prem')?.value       || '',
+      pCover:     document.getElementById('p-cover')?.value      || '',
+      clName:     document.getElementById('cl-name')?.value      || '',
+      sigName:    document.getElementById('sig-name')?.value     || '',
+      sigRole:    document.getElementById('sig-role')?.value     || '',
+      payIntro:   document.getElementById('pay-intro')?.value    || '',
+      tsiRows, bankRows, momoRows, xpRows
+    };
+  }
+
+  function saveFormState() {
+    try {
+      const state = captureFormState();
+      if (!state.pInv || state.pInv.includes('—')) return;
+      const all = JSON.parse(localStorage.getItem(MQ_KEY) || '[]');
+      const idx = all.findIndex(q => q.pInv === state.pInv);
+      if (idx > -1) all.splice(idx, 1);      // replace existing same ref
+      all.unshift(state);                      // newest first
+      localStorage.setItem(MQ_KEY, JSON.stringify(all.slice(0, 300)));
+    } catch(e) { console.warn('saveFormState failed:', e); }
+  }
+
+  function getSavedQuotes() {
+    try { return JSON.parse(localStorage.getItem(MQ_KEY) || '[]'); }
+    catch(e) { return []; }
+  }
+
+  function loadFormState(state) {
+    _editingExistingQuote = true;
+    // Simple fields
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val||''; };
+    set('p-date',        state.pDate);
+    set('p-class',       state.pClass);
+    set('p-risk',        state.pRisk);
+    set('p-sum',         state.pSum);
+    set('p-basic-prem',  state.pBasicPrem);
+    set('p-cover',       state.pCover);
+    set('cl-name',       state.clName);
+    set('sig-name',      state.sigName);
+    set('sig-role',      state.sigRole);
+    set('pay-intro',     state.payIntro);
+
+    // Quote reference (trigger update)
+    const pInvEl = document.getElementById('p-inv');
+    if (pInvEl) pInvEl.value = state.pInv;
+
+    // Trigger class-change side effects (quote ref display, WC note)
+    onClassChange();
+
+    // Clear and restore TSI rows
+    document.getElementById('tsi-rows-container').innerHTML = '';
+    tsiCount = 0;
+    (state.tsiRows || []).forEach(r => addTSIRow(r.l, r.v, r.p));
+
+    // Clear and restore bank rows
+    document.getElementById('bank-container').innerHTML = '';
+    document.getElementById('momo-container').innerHTML = '';
+    bankCount = 0;
+    (state.bankRows || []).forEach(r => addBankField('bank', r.l, r.v));
+    (state.momoRows || []).forEach(r => addBankField('momo', r.l, r.v));
+
+    // Clear and restore extra premium rows
+    document.getElementById('extra-prem-container').innerHTML = '';
+    xPremCount = 0;
+    (state.xpRows || []).forEach(r => addExtraPremRow(r.l, r.v));
+
+    // Recalculate gross and VAT
+    calcGrossPrem();
+
+    // Close drawer and scroll to top of form
+    closeMyQuotes();
+    try { document.querySelector('.form-panel')?.scrollTo(0, 0); window.scrollTo(0, 0); } catch(e) {}
+  }
+
+  function deleteQuote(pInv) {
+    try {
+      const all = getSavedQuotes().filter(q => q.pInv !== pInv);
+      localStorage.setItem(MQ_KEY, JSON.stringify(all));
+      renderMyQuotes();
+    } catch(e) {}
+  }
+
+  function clearAllQuotes() {
+    if (!confirm('Delete all saved quotes? This cannot be undone.')) return;
+    localStorage.removeItem(MQ_KEY);
+    renderMyQuotes();
+  }
+
+  function renderMyQuotes() {
+    const list  = document.getElementById('mq-list');
+    const query = (document.getElementById('mq-search')?.value || '').toLowerCase().trim();
+    let quotes  = getSavedQuotes();
+    if (query) quotes = quotes.filter(q =>
+      (q.clName||'').toLowerCase().includes(query) ||
+      (q.pInv||'').toLowerCase().includes(query)   ||
+      (q.pClass||'').toLowerCase().includes(query)
+    );
+    if (!quotes.length) {
+      list.innerHTML = '<div style="text-align:center;padding:40px 0;color:#9aa5b1;font-family:Inter,sans-serif;font-size:13px;"><i class="ti ti-file-off" style="font-size:32px;display:block;margin-bottom:8px;"></i>' + (query ? 'No matching quotes found.' : 'No saved quotes yet.<br>Generate a quote to save it here.') + '</div>';
+      return;
+    }
+    list.innerHTML = quotes.map(q => {
+      const date    = q.pDate || q.savedAt?.slice(0,10) || '';
+      const premium = q.pPrem ? 'GHS ' + q.pPrem : '—';
+      return `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px;font-family:Inter,sans-serif;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;font-size:13px;color:#1a2e4a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${q.pInv || '—'}</div>
+            <div style="font-size:12px;color:#4a5568;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${q.clName || '—'}</div>
+            <div style="font-size:11px;color:#718096;margin-top:2px;">${q.pClass || ''} &bull; ${date}</div>
+            <div style="font-size:11px;color:#2E75B6;font-weight:600;margin-top:3px;">${premium}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0;">
+            <button onclick='loadQuoteByRef(${JSON.stringify(q.pInv)})' style="font-size:12px;padding:5px 12px;background:#1a2e4a;color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:Inter,sans-serif;white-space:nowrap;"><i class="ti ti-pencil"></i> Load & Edit</button>
+            <button onclick='deleteQuote(${JSON.stringify(q.pInv)})' style="font-size:12px;padding:5px 12px;background:none;color:#c53030;border:1px solid #c53030;border-radius:7px;cursor:pointer;font-family:Inter,sans-serif;"><i class="ti ti-trash"></i> Delete</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function loadQuoteByRef(pInv) {
+    const state = getSavedQuotes().find(q => q.pInv === pInv);
+    if (state) loadFormState(state);
+  }
+
+  function openMyQuotes() {
+    renderMyQuotes();
+    const overlay = document.getElementById('mq-overlay');
+    const drawer  = document.getElementById('mq-drawer');
+    overlay.style.display = 'block';
+    drawer.style.display  = 'flex';
+    requestAnimationFrame(() => drawer.style.transform = 'translateX(0)');
+  }
+
+  function closeMyQuotes() {
+    const drawer  = document.getElementById('mq-drawer');
+    const overlay = document.getElementById('mq-overlay');
+    if (!drawer) return;
+    drawer.style.transform = 'translateX(100%)';
+    setTimeout(() => {
+      drawer.style.display  = 'none';
+      overlay.style.display = 'none';
+    }, 260);
+  }
+
+  // ── Hook: save form state every time a quote is successfully generated
+  // (called at end of generateQuote after innerHTML is set)
+
 </script>
+
+<!-- ── MY QUOTES DRAWER ──────────────────────────────────────────── -->
+<div id="mq-overlay" onclick="closeMyQuotes()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;"></div>
+<div id="mq-drawer" style="display:none;position:fixed;top:0;right:0;width:420px;max-width:100vw;height:100vh;background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.18);z-index:901;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease;">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #e2e8f0;background:#1a2e4a;">
+    <span style="color:#fff;font-weight:700;font-size:15px;font-family:Inter,sans-serif;"><i class="ti ti-history"></i> My Saved Quotes</span>
+    <button onclick="closeMyQuotes()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+  </div>
+  <div style="padding:12px 16px;border-bottom:1px solid #e2e8f0;">
+    <input id="mq-search" type="text" placeholder="Search by client, reference or class…" oninput="renderMyQuotes()" style="width:100%;font-size:13px;padding:8px 12px;border:1px solid #cbd5e0;border-radius:8px;font-family:Inter,sans-serif;box-sizing:border-box;" />
+  </div>
+  <div id="mq-list" style="flex:1;overflow-y:auto;padding:12px 16px;"></div>
+  <div style="padding:12px 16px;border-top:1px solid #e2e8f0;text-align:right;">
+    <button onclick="clearAllQuotes()" style="font-size:12px;color:#c53030;background:none;border:1px solid #c53030;border-radius:8px;padding:6px 14px;cursor:pointer;font-family:Inter,sans-serif;">Clear all saved quotes</button>
+  </div>
+</div>
+
 </body>
 </html>
