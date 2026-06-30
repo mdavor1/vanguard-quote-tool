@@ -318,7 +318,7 @@
     <div class="tb-icon"><i class="ti ti-shield-check"></i></div>
     <div>
       <div class="tb-title">Insurance Quote Generator</div>
-      <div class="tb-sub">Vanguard Assurance · Non-motor policies</div>
+      <div class="tb-sub">Vanguard Assurance · Quote Generator</div>
     </div>
   </div>
   <span class="tb-tag">v1.0</span>
@@ -360,6 +360,11 @@
       <label>Class of insurance</label>
       <select id="p-class" onchange="onClassChange()">
         <option value="">— Select class —</option>
+        <optgroup label="Motor Vehicle Insurance">
+          <option>Motor — Third Party Only</option>
+          <option>Motor — Third Party, Fire &amp; Theft</option>
+          <option>Motor — Comprehensive</option>
+        </optgroup>
         <optgroup label="Fire Policies (Commercial)">
           <option>Assets All Risk Policy</option>
           <option>Combined Fire &amp; Theft</option>
@@ -474,6 +479,27 @@
       <div id="tsi-rows-container"></div>
     </div>
 
+    <!-- ── MOTOR VEHICLES SECTION (shown only for motor classes) ── -->
+    <div id="motor-section" style="display:none;">
+      <div class="sec-hdr"><i class="ti ti-car"></i> Vehicle details</div>
+      <div id="motor-rows-container"></div>
+      <button class="add-btn" onclick="addMotorRow()" style="margin-bottom:4px;">
+        <i class="ti ti-plus"></i> Add vehicle
+      </button>
+      <div class="field" style="margin-top:6px;">
+        <label id="lbl-motor-total">Total fleet premium (GHS)</label>
+        <input id="motor-total-prem" type="text" readonly
+          style="background:#f4f6f8;color:#1a2e4a;font-weight:600;cursor:default;"
+          placeholder="Auto-calculated from vehicles below" />
+      </div>
+      <div class="field">
+        <label id="lbl-motor-sum">Total sum insured (GHS)</label>
+        <input id="motor-total-sum" type="text" readonly
+          style="background:#f4f6f8;color:#1a2e4a;font-weight:600;cursor:default;"
+          placeholder="Auto-calculated from vehicles below" />
+      </div>
+    </div>
+
     <!-- ⑤ PREMIUM -->
     <div class="sec-hdr"><i class="ti ti-receipt-2"></i> Premium</div>
     <div class="field">
@@ -575,7 +601,7 @@
   // ═══════════════════════════════════════════════════════
   const SHEET_ID         = 'YOUR_SHEET_ID';          // Google Sheet ID
   const SHEET_NAME       = 'QuoteLog';               // Tab name in Google Sheet
-  const APPS_SCRIPT_URL  = 'https://script.google.com/macros/s/AKfycbz_iKwhaiuxxrUltbZDUV_LYYto3VQsBQXPtSuAimAMk3ybnWHKMfFKqpvgxiJI1S3Sng/exec';
+  const APPS_SCRIPT_URL  = 'https://script.google.com/macros/s/AKfycby3imOZ0iRJD-s3_jekoLQ8Y9ufst-Eld2psY3i24SrIStNapgZp7qKtppqhf5gsA/exec';
   // Published CSV URL — used for duplicate checking (no CORS issues)
   const SHEET_CSV_URL    = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ2uB78rTJfRnrY-WW9N36S4HIPOgHsnrsBf6ljMmkISpFYFu1hsReua32UU-NGKQ/pub?gid=790126753&single=true&output=csv';
   const EMAILJS_PUBLIC   = 'K693tN09tCA75U4kC';
@@ -637,26 +663,31 @@
     });
     if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL') return;
     try {
-      await fetch(APPS_SCRIPT_URL, {
-        method: 'POST', mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-          type:  'quote',
-          quote: {
-            quoteRef:    quoteData.quoteRef,
-            date:        quoteData.date,
-            officer:     quoteData.officer,
-            client:      quoteData.client,
-            policyClass: quoteData.policyClass,
-            sumInsured:  String(quoteData.sumInsured).replace(/,/g,''),
-            premium:     String(quoteData.premium).replace(/,/g,''),
-            branch:      quoteData.branch     || '',
-            clientEmail: quoteData.clientEmail|| '',
-            action:      quoteData.action      || 'append',
-            lastUpdated: quoteData.lastUpdated || ''
-          }
-        })
+      const _payload = JSON.stringify({
+        type:  'quote',
+        quote: {
+          quoteRef:    quoteData.quoteRef,
+          date:        quoteData.date,
+          officer:     quoteData.officer,
+          client:      quoteData.client,
+          policyClass: quoteData.policyClass,
+          sumInsured:  String(quoteData.sumInsured).replace(/,/g,''),
+          premium:     String(quoteData.premium).replace(/,/g,''),
+          currency:    quoteData.currency    || 'GHS',
+          periodFrom:  quoteData.periodFrom  || '',
+          periodTo:    quoteData.periodTo    || '',
+          branch:      quoteData.branch      || '',
+          notes:       quoteData.notes       || '',
+          clientEmail: quoteData.clientEmail || '',
+          action:      quoteData.action      || 'append',
+          lastUpdated: quoteData.lastUpdated || ''
+        }
       });
+      // Use a no-cors GET with data in the query string — bypasses all CORS/preflight
+      // issues in Safari. Apps Script reads via e.parameter.data in doGet().
+      const _url = APPS_SCRIPT_URL + '?data=' + encodeURIComponent(_payload);
+      await fetch(_url, { mode: 'no-cors' });
+      console.log('Sheet write sent (GET).');
     } catch(e) { console.warn('Sheet write failed:', e); }
   }
 
@@ -670,11 +701,8 @@
     } catch(e) { console.warn('localStorage dup log failed:', e); }
     if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL') return;
     try {
-      await fetch(APPS_SCRIPT_URL, {
-        method: 'POST', mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ type:'duplicate', duplicate:{ conflictId:'CF-'+Date.now(), date:new Date().toISOString(), officer:officerName||'', policyClass:pClass||'', sumInsured:String(pSum).replace(/,/g,''), existingRef:existingRef||'', attemptedRef:attemptedRef||'', alertSentTo:'mdavor@vanguardassurance.com', action:'Blocked by system' }})
-      });
+      const _dupData = encodeURIComponent(JSON.stringify({ type:'duplicate', duplicate:{ conflictId:'CF-'+Date.now(), date:new Date().toISOString(), officer:officerName||'', policyClass:pClass||'', sumInsured:String(pSum).replace(/,/g,''), existingRef:existingRef||'', attemptedRef:attemptedRef||'', alertSentTo:'mdavor@vanguardassurance.com', action:'Blocked by system' }}));
+      await fetch(APPS_SCRIPT_URL + '?data=' + _dupData, { mode: 'no-cors' });
     } catch(e) { console.warn('Duplicate sheet log failed:', e); }
   }
 
@@ -773,6 +801,108 @@
   }
 
   const WC_CLASS = "Workmen Compensation";
+
+  const MOTOR_CLASSES = [
+    'Motor — Third Party Only',
+    'Motor — Third Party, Fire & Theft',
+    'Motor — Comprehensive'
+  ];
+
+  function isMotorClass(pClass) { return MOTOR_CLASSES.includes(pClass); }
+
+  // ── MOTOR VEHICLE ROW HELPERS ──────────────────────────────────
+  let motorCount = 0;
+  const VEHICLE_USES = ['Private','Commercial / Hire','Own Goods','Special Types / Heavy Equipment'];
+
+  function addMotorRow() {
+    motorCount++;
+    const id = motorCount;
+    const wrap = document.createElement('div');
+    wrap.id = 'mv-' + id;
+    wrap.style.cssText = 'border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fafbfc;';
+    wrap.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+      + '<span style="font-size:11px;font-weight:700;color:#1a2e4a;text-transform:uppercase;letter-spacing:.04em;">Vehicle ' + id + '</span>'
+      + '<button onclick="removeMotorRow(' + id + ')" class="rm-btn"><i class="ti ti-x"></i></button>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
+      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Make</label>'
+      + '<input id="mv-make-' + id + '" placeholder="e.g. Toyota" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
+      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Model</label>'
+      + '<input id="mv-model-' + id + '" placeholder="e.g. Hilux" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
+      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Year</label>'
+      + '<input id="mv-year-' + id + '" placeholder="e.g. 2021" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
+      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Reg. Number</label>'
+      + '<input id="mv-reg-' + id + '" placeholder="e.g. GR-1234-21" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
+      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Vehicle Use</label>'
+      + '<select id="mv-use-' + id + '" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;font-family:Inter,sans-serif;">'
+      + VEHICLE_USES.map(function(u){return '<option>'+u+'</option>';}).join('')
+      + '</select></div>'
+      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Value (GHS)</label>'
+      + '<input id="mv-val-' + id + '" placeholder="e.g. 85,000.00" oninput="fmtInput(this);calcMotorTotals()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
+      + '<div class="field" style="margin:0;grid-column:1/-1;"><label style="font-size:11px;">Premium (GHS)</label>'
+      + '<input id="mv-prem-' + id + '" placeholder="e.g. 4,250.00" oninput="fmtInput(this);calcMotorTotals()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
+      + '</div>';
+    document.getElementById('motor-rows-container').appendChild(wrap);
+  }
+
+  function removeMotorRow(id) {
+    var el = document.getElementById('mv-' + id);
+    if (el) { el.remove(); calcMotorTotals(); }
+  }
+
+  function calcMotorTotals() {
+    var totalPrem = 0, totalVal = 0;
+    document.querySelectorAll('[id^="mv-"]').forEach(function(el) {
+      if (!/^mv-\d+$/.test(el.id)) return;
+      var id = el.id.replace('mv-','');
+      var p = parseFloat(String(document.getElementById('mv-prem-'+id)?.value||'0').replace(/,/g,'')) || 0;
+      var v = parseFloat(String(document.getElementById('mv-val-'+id)?.value||'0').replace(/,/g,'')) || 0;
+      totalPrem += p; totalVal += v;
+    });
+    var fmtN = function(n){ return n > 0 ? n.toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2}) : ''; };
+    var tp = document.getElementById('motor-total-prem');
+    var ts = document.getElementById('motor-total-sum');
+    if (tp) tp.value = fmtN(totalPrem);
+    if (ts) ts.value = fmtN(totalVal);
+    document.getElementById('p-basic-prem').value = fmtN(totalPrem);
+    document.getElementById('p-sum').value         = fmtN(totalVal);
+    calcGrossPrem();
+  }
+
+  function getMotorRows() {
+    var rows = [];
+    document.querySelectorAll('[id^="mv-"]').forEach(function(el) {
+      if (!/^mv-\d+$/.test(el.id)) return;
+      var id = el.id.replace('mv-','');
+      rows.push({
+        make:  document.getElementById('mv-make-'+id)?.value.trim()  || '',
+        model: document.getElementById('mv-model-'+id)?.value.trim() || '',
+        year:  document.getElementById('mv-year-'+id)?.value.trim()  || '',
+        reg:   document.getElementById('mv-reg-'+id)?.value.trim()   || '',
+        use:   document.getElementById('mv-use-'+id)?.value          || '',
+        val:   document.getElementById('mv-val-'+id)?.value.trim()   || '',
+        prem:  document.getElementById('mv-prem-'+id)?.value.trim()  || ''
+      });
+    });
+    return rows;
+  }
+
+  const BOND_DOC_CLASSES = [
+    'Performance Bond',
+    'Advance Payment / Mobilization Bond'
+  ];
+
+  const BOND_DOC_CONDITIONS = [
+    'The following documents must be provided before the bond would be issued:',
+    '1. Fully executed proposal form',
+    '2. Copy of award letter',
+    '3. Certificate of Incorporation',
+    '4. Copies of Ghana Cards of key management (main signatories)',
+    '5. Executed Term Sheet',
+    '6. Executed Counter Indemnity',
+    '7. Evidence of full premium payment'
+  ];
 
   function isWCClass(pClass) {
     return pClass === WC_CLASS;
@@ -919,8 +1049,8 @@
 
     if (!rawPrem) { preview.style.display = 'none'; return; }
 
-    const isVatable = pClass && !isBondClass(pClass);
-    const vatAmt    = isVatable ? rawPrem * VAT_RATE : 0;
+    const isVatable = pClass && !isBondClass(pClass) && !isMotorClass(pClass);
+    const vatAmt    = 0;   // VAT removed from schedules
     const total     = rawPrem + vatAmt;
 
     const cur = getCurrency();
@@ -991,8 +1121,12 @@
     'Customs Bond':                               'CB',
     // Workmen Compensation
     'Workmen Compensation':                       'WC',
+    // Motor
+    'Motor — Third Party Only':                   'MT',
+    'Motor — Third Party, Fire & Theft':          'MF',
+    'Motor — Comprehensive':                      'MC',
     // Marine
-    'Marine Cargo General':                       'MC',
+    'Marine Cargo General':                       'MG',
     'Marine Cargo Exports':                       'ME',
     'Marine Certificate Policies':                'MP',
     'Stevedores Legal Liability':                 'SL',
@@ -1013,10 +1147,63 @@
 
   function onClassChange() {
     updateQuoteRef();
-    calcGrossPrem();
-    const pClass = g('p-class');
+    const pClass  = g('p-class');
+    const isMotor = isMotorClass(pClass);
+
+    // Show/hide motor section vs standard subject matter fields
+    const motorSec    = document.getElementById('motor-section');
+    const tsiSec      = document.getElementById('tsi-breakdown-section');
+    const pRiskField  = document.getElementById('p-risk')?.closest('.field');
+    const pSumField   = document.getElementById('p-sum')?.closest('.field');
+    const pBasicField = document.getElementById('p-basic-prem')?.closest('.field');
+    if (motorSec)    motorSec.style.display    = isMotor ? 'block' : 'none';
+    if (tsiSec)      tsiSec.style.display      = isMotor ? 'none'  : 'block';
+    if (pRiskField)  pRiskField.style.display  = isMotor ? 'none'  : 'block';
+    if (pSumField)   pSumField.style.display   = isMotor ? 'none'  : 'block';
+    if (pBasicField) pBasicField.style.display = isMotor ? 'none'  : 'block';
+
+    // Add first vehicle row if switching to motor with no rows yet
+    if (isMotor) {
+      const wrappers = [...document.querySelectorAll('[id^="mv-"]')].filter(function(el){ return /^mv-\d+$/.test(el.id); });
+      if (wrappers.length === 0) addMotorRow();
+    }
+
     const note = document.getElementById('basic-prem-note');
     if (note) note.style.display = isWCClass(pClass) ? 'block' : 'none';
+
+    if (!isMotor) calcGrossPrem();
+
+    // Motor — auto-populate standard conditions
+    const _notesEl = document.getElementById('t-notes');
+    const MOTOR_CONDITIONS = [
+      'Cover is subject to the vehicle being roadworthy and licensed',
+      'Excess as per policy schedule applies'
+    ];
+    if (_notesEl && isMotor) {
+      const _cur = _notesEl.value.trim();
+      if (!MOTOR_CONDITIONS.some(l => _cur.includes(l))) {
+        _notesEl.value = (_cur ? _cur + '\n' : '') + MOTOR_CONDITIONS.join('\n');
+      }
+    } else if (_notesEl && !isMotor) {
+      const _cur = _notesEl.value.trim();
+      if (MOTOR_CONDITIONS.some(l => _cur.includes(l))) {
+        _notesEl.value = _cur.split('\n')
+          .filter(l => !MOTOR_CONDITIONS.some(mc => l.trim() === mc))
+          .join('\n').trim();
+      }
+    }
+
+    // Bond conditions
+    const notesEl = document.getElementById('t-notes');
+    if (!notesEl) return;
+    if (BOND_DOC_CLASSES.includes(pClass)) {
+      const current = notesEl.value.trim();
+      if (current === '' || BOND_DOC_CONDITIONS.some(function(l){ return current.includes(l); })) {
+        notesEl.value = BOND_DOC_CONDITIONS.join('\n');
+      }
+    } else {
+      if (notesEl.value.trim() === BOND_DOC_CONDITIONS.join('\n')) notesEl.value = '';
+    }
   }
 
   function resetEditFlag() { _editingExistingQuote = false; }
@@ -1060,10 +1247,16 @@
       const pClass   = g('p-class')   || '';
       const pSum     = g('p-sum')     || '';
       const pPrem    = g('p-prem')    || '';
+      // For motor: derive subject description from vehicles
+      const _mvPrev = isMotorClass(pClass) ? getMotorRows() : [];
+      const _motorDesc = _mvPrev.length === 1
+        ? [_mvPrev[0].year, _mvPrev[0].make, _mvPrev[0].model].filter(Boolean).join(' ')
+          + (_mvPrev[0].reg ? ' — ' + _mvPrev[0].reg : '')
+        : (_mvPrev.length > 1 ? 'Fleet of ' + _mvPrev.length + ' vehicle(s)' : '');
       const pCur     = getCurrency();
       const pStart   = g('p-start');
       const pEnd     = g('p-end');
-      const pRisk    = g('p-risk');
+      const pRisk    = isMotorClass(pClass) ? _motorDesc : (g('p-risk') || '');
       const pExcess  = g('p-excess');
       const pPayDue  = g('p-paydue') || 'On receipt';
       const payIntro = g('pay-intro');
@@ -1078,12 +1271,13 @@
       const logoSrc   = LOGO_DATA_URL;
       const stampSrc  = STAMP_DATA_URL;
 
-      // ── Duplicate check
-      if (pClass && pSum) {
+      // ── Duplicate check (skipped for motor — high volume makes sum-insured matching unreliable)
+      if (pClass && pSum && !isMotorClass(pClass)) {
         const recent = await fetchRecentQuotes();
         const sevenDaysAgo = Date.now() - (7*24*60*60*1000);
         const normSum = parseFloat(String(pSum).replace(/,/g,''));
-        console.log('Duplicate check — records:', recent.length, '| class:', pClass, '| sum:', normSum);
+        const curNow  = getCurrency();   // e.g. 'GHS', 'USD', 'EUR'
+        console.log('Duplicate check — records:', recent.length, '| class:', pClass, '| sum:', normSum, '| currency:', curNow);
         const match = recent.find(q => {
           let qDate = 0;
           if (q.date) {
@@ -1093,8 +1287,11 @@
             qDate = isNaN(d.getTime()) ? Date.now() : d.getTime();
           }
           const qSum = parseFloat(String(q.sumInsured).replace(/,/g,''));
+          // Records logged before currency tracking default to GHS
+          const qCur = (q.currency && q.currency.trim()) ? q.currency.trim().toUpperCase() : 'GHS';
           return q.policyClass.trim().toLowerCase() === pClass.trim().toLowerCase()
             && !isNaN(qSum) && !isNaN(normSum) && Math.abs(qSum-normSum) < 1
+            && qCur === curNow.toUpperCase()
             && qDate >= sevenDaysAgo;
         });
         if (match) {
@@ -1108,6 +1305,12 @@
       }
 
       // ── Log quote
+      const isMotor = isMotorClass(pClass);
+      // Pre-compute motor totals needed for sheet logging and quote rendering
+      const motorVehiclesForCalc = isMotor ? getMotorRows() : [];
+      const motorGrandPrem = motorVehiclesForCalc.reduce((s,r)=>s+(parseFloat(String(r.prem||0).replace(/,/g,''))||0),0);
+      const motorGrandVal  = motorVehiclesForCalc.reduce((s,r)=>s+(parseFloat(String(r.val||0).replace(/,/g,''))||0),0);
+
       const _now = new Date().toISOString();
       logQuoteToSheet({
         quoteRef:    pInv,
@@ -1115,8 +1318,9 @@
         officer:     sigName,
         client:      clName,
         policyClass: pClass,
-        sumInsured:  String(pSum).replace(/,/g,''),
-        premium:     String(pPrem).replace(/,/g,''),
+        sumInsured:  isMotor ? String(motorGrandVal)  : String(pSum).replace(/,/g,''),
+        premium:     isMotor ? String(motorGrandPrem) : String(pPrem).replace(/,/g,''),
+        currency:    pCur,
         branch:      coBranch,
         clientEmail: '',
         action:      _editingExistingQuote ? 'update' : 'append',
@@ -1138,15 +1342,18 @@
       const tsiAddonTotal = tsiRows.reduce((s,r)=>s+(parseFloat(String(r.p||0).replace(/,/g,''))||0),0);
       const grossPrem  = isWC ? basicPrem + tsiAddonTotal : basicPrem;
 
-      const isVatable  = pClass && !isBondClass(pClass);
-      const vatAmt     = isVatable ? grossPrem * VAT_RATE : 0;
+      const isVatable  = pClass && !isBondClass(pClass) && !isMotorClass(pClass);
 
       let allExtraRows = [...xPremRows];
       const extraTotal = allExtraRows.reduce((s,r)=>s+(r.v||0),0);
-      const totalPrem  = grossPrem + vatAmt + extraTotal;
 
-      // rawPrem kept for compatibility with any downstream references
-      const rawPrem    = grossPrem;
+      // For motor: effectiveGross = sum of all vehicle premiums (motorVehiclesForCalc/Prem/Val already computed above)
+      const effectiveGross = isMotor ? motorGrandPrem : grossPrem;
+      const vatAmt         = 0;   // VAT removed from all schedules
+      const totalPrem      = effectiveGross + extraTotal;
+
+      // rawPrem kept for compatibility
+      const rawPrem    = effectiveGross;
 
       // ── Notes as numbered list
       const DEFAULT_CONDITION = 'No premium, no cover';
@@ -1157,7 +1364,17 @@
         notesLines.unshift(DEFAULT_CONDITION);
       }
 
-      // ── Fixed layout — identical on all screen sizes (mobile zooms to read)
+      // For Performance Bond and Advance Payment Bond — ensure the required
+      // document checklist appears on the quote (add if not already present)
+      if (BOND_DOC_CLASSES.includes(pClass)) {
+        const alreadyHasBondDocs = notesLines.some(l => l.includes('proposal form'));
+        if (!alreadyHasBondDocs) {
+          notesLines.push(...BOND_DOC_CONDITIONS);
+        }
+      }
+
+
+      // ── Fixed layoutn sizes (mobile zooms to read)
       const pad  = '5px 14px';
       const padS = '6px 14px';
       const fs   = '11.5px';
@@ -1191,6 +1408,7 @@
         tdR:     'padding:'+pad+' 12px;border:1px solid #c0ccd8;font-size:'+fs+';text-align:right;white-space:nowrap;',
         tdBold:  'padding:'+pad+' 12px;border:1px solid #c0ccd8;font-size:'+fs+';font-weight:700;',
         tdBoldR: 'padding:'+pad+' 12px;border:1px solid #c0ccd8;font-size:'+fs+';font-weight:700;text-align:right;white-space:nowrap;',
+        tdC:     'padding:'+pad+' 12px;border:1px solid #c0ccd8;font-size:'+fs+';text-align:center;',
         tdTotal: 'padding:'+padS+' 12px;border:1px solid #1a2e4a;font-size:12px;font-weight:700;background:#eef2f7;text-align:right;white-space:nowrap;',
         tdTotL:  'padding:'+padS+' 12px;border:1px solid #1a2e4a;font-size:12px;font-weight:700;background:#eef2f7;',
         bankGrid:'display:grid;grid-template-columns:1fr 1fr;',
@@ -1203,6 +1421,38 @@
         footBar: 'background:#1a2e4a;padding:7px 18px;text-align:center;',
         footTxt: 'font-size:'+fsS+';color:rgba(255,255,255,.75);line-height:1.6;',
       };
+
+      // ── Motor vehicle table HTML
+      const motorSubjectHTML = isMotor
+        ? ('<table style="'+S.tbl+'">'
+          +'<thead><tr>'
+          +'<th style="'+S.thNav+';text-align:left;width:28%;">Vehicle</th>'
+          +'<th style="'+S.thNavR+';width:14%;">Reg. No.</th>'
+          +'<th style="'+S.thNavR+';width:20%;">Use</th>'
+          +'<th style="'+S.thNavR+';width:19%;">Value ('+pCur+')</th>'
+          +'<th style="'+S.thNavR+';width:19%;">Premium ('+pCur+')</th>'
+          +'</tr></thead><tbody>'
+          + motorVehiclesForCalc.map(function(r,i){
+              const desc = [r.year, r.make, r.model].filter(Boolean).join(' ') || ('Vehicle '+(i+1));
+              return '<tr>'
+                +'<td style="'+S.td+'">'+desc+'</td>'
+                +'<td style="'+S.tdC+'">'+(r.reg  || '—')+'</td>'
+                +'<td style="'+S.tdC+'">'+(r.use  || '—')+'</td>'
+                +'<td style="'+S.tdR+'">'+(r.val  ? fmt(parseFloat(String(r.val).replace(/,/g,'')))  : '—')+'</td>'
+                +'<td style="'+S.tdR+'">'+(r.prem ? fmt(parseFloat(String(r.prem).replace(/,/g,''))) : '—')+'</td>'
+                +'</tr>';
+            }).join('')
+          +(motorVehiclesForCalc.length > 1
+            ? '<tr><td colspan="3" style="'+S.tdBold+'">Sub-Total</td>'
+              +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
+              +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandPrem)+'</td></tr>'
+            : '')
+          +'<tr><td colspan="4" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td>'
+          +'<td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPrem)+'</td></tr>'
+          +'</tbody></table>')
+        : '';
+
+      // ── Fixed layout
 
       // Bank columns
       const bankCol1 = getBankRows();
@@ -1247,9 +1497,7 @@
       })();
 
       const xPremHTML = allExtraRows.map(r=>'<tr><td colspan="2" style="'+S.td+'">'+r.l+'</td><td style="'+S.tdR+'">'+fmt(r.v)+'</td></tr>').join('');
-      const vatHTML   = isVatable
-        ? '<tr><td colspan="2" style="'+S.td+'">VAT (20%)</td><td style="'+S.tdR+'">'+fmt(vatAmt)+'</td></tr>'
-        : '<tr><td colspan="2" style="'+S.td+'">VAT</td><td style="'+S.tdR+'">Exempt</td></tr>';
+      const vatHTML = '';
 
       const condHTML = notesLines.length > 0
         ? notesLines.map(l=>'<div style="font-size:'+fsS+';margin-bottom:2px;line-height:1.45;padding-left:0;">'+l+'</div>').join('')
@@ -1287,20 +1535,23 @@
         +'</div></div>'
         +'</div>'
 
-        // SUBJECT MATTER & PREMIUM
-        +'<div style="'+S.secHdr+'">Subject Matter &amp; Premium</div>'
-        +'<table style="'+S.tbl+'">'
-        +'<thead><tr>'
-        +'<th style="'+S.thNav+';width:50%;">Subject Matter Insured</th>'
-        +'<th style="'+S.thNavR+';width:25%;">Sum Insured ('+pCur+')</th>'
-        +'<th style="'+S.thNavR+';width:25%;">Premium ('+pCur+')</th>'
-        +'</tr></thead>'
-        +'<tbody>'
-        +tsiHTML
-        +xPremHTML
-        +vatHTML
-        +'<tr><td colspan="2" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td><td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPrem)+'</td></tr>'
-        +'</tbody></table>'
+        // SUBJECT MATTER & PREMIUM (or VEHICLES & PREMIUM for motor)
+        +'<div style="'+S.secHdr+'">'+(isMotor ? 'Vehicles &amp; Premium' : 'Subject Matter &amp; Premium')+'</div>'
+        +(isMotor
+          ? motorSubjectHTML
+          : '<table style="'+S.tbl+'">'
+            +'<thead><tr>'
+            +'<th style="'+S.thNav+';width:50%;">Subject Matter Insured</th>'
+            +'<th style="'+S.thNavR+';width:25%;">Sum Insured ('+pCur+')</th>'
+            +'<th style="'+S.thNavR+';width:25%;">Premium ('+pCur+')</th>'
+            +'</tr></thead>'
+            +'<tbody>'
+            +tsiHTML
+            +xPremHTML
+            +vatHTML
+            +'<tr><td colspan="2" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td><td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPrem)+'</td></tr>'
+            +'</tbody></table>'
+        )
 
         // CONDITIONS
         +(condHTML?'<div style="'+S.secHdr+'">Conditions &amp; Notes</div><div style="padding:'+pad+' 14px;">'+condHTML+'</div>':'')
@@ -1510,6 +1761,20 @@
       if (!el) continue;
       xpRows.push({ l: document.getElementById('xp-l-'+i)?.value||'', v: document.getElementById('xp-v-'+i)?.value||'' });
     }
+    var motorRowsState = [];
+    document.querySelectorAll('[id^="mv-"]').forEach(function(el) {
+      if (!/^mv-\d+$/.test(el.id)) return;
+      var id = el.id.replace('mv-','');
+      motorRowsState.push({
+        make:  document.getElementById('mv-make-'+id)?.value  || '',
+        model: document.getElementById('mv-model-'+id)?.value || '',
+        year:  document.getElementById('mv-year-'+id)?.value  || '',
+        reg:   document.getElementById('mv-reg-'+id)?.value   || '',
+        use:   document.getElementById('mv-use-'+id)?.value   || '',
+        val:   document.getElementById('mv-val-'+id)?.value   || '',
+        prem:  document.getElementById('mv-prem-'+id)?.value  || ''
+      });
+    });
     return {
       savedAt:    new Date().toISOString(),
       pInv:       document.getElementById('p-inv')?.value        || '',
@@ -1524,7 +1789,7 @@
       sigName:    document.getElementById('sig-name')?.value     || '',
       sigRole:    document.getElementById('sig-role')?.value     || '',
       payIntro:   document.getElementById('pay-intro')?.value    || '',
-      tsiRows, bankRows, momoRows, xpRows
+      tsiRows, bankRows, momoRows, xpRows, motorRows: motorRowsState
     };
   }
 
@@ -1583,6 +1848,20 @@
     document.getElementById('extra-prem-container').innerHTML = '';
     xPremCount = 0;
     (state.xpRows || []).forEach(r => addExtraPremRow(r.l, r.v));
+
+    // Restore motor vehicle rows
+    document.getElementById('motor-rows-container').innerHTML = '';
+    motorCount = 0;
+    (state.motorRows || []).forEach(function(r) {
+      addMotorRow();
+      var id = motorCount;
+      var sv = function(fid, val){ var el = document.getElementById(fid+id); if(el) el.value = val||''; };
+      sv('mv-make-', r.make); sv('mv-model-', r.model); sv('mv-year-', r.year);
+      sv('mv-reg-',  r.reg);  sv('mv-prem-',  r.prem);  sv('mv-val-',  r.val);
+      var useEl = document.getElementById('mv-use-'+id);
+      if (useEl && r.use) useEl.value = r.use;
+    });
+    if ((state.motorRows||[]).length) calcMotorTotals();
 
     // Recalculate gross and VAT
     calcGrossPrem();
