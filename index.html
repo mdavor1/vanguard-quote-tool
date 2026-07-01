@@ -818,7 +818,115 @@
 
   // ── MOTOR VEHICLE ROW HELPERS ──────────────────────────────────
   let motorCount = 0;
-  const VEHICLE_USES = ['Private','Commercial / Hire','Own Goods','Special Types / Heavy Equipment'];
+
+  // ── 2026 NIC MOTOR TARIFF (source: 2026 Motor Third-Party Tariff) ──
+  //  tp   = Third-Party office (risk) premium, GHS
+  //  nic  = statutory NIC contribution per vehicle, GHS (added AFTER discount, never discounted)
+  //  seat = extra-seat loading per seat above 5, GHS
+  //  comp = Comprehensive own-damage basic rate {ice, ev}
+  //  tpft = Third-Party Fire & Theft own-damage basic rate {ice, ev}
+  const MOTOR_RISK_CATEGORIES = [
+    { key:'X1',   label:'Private Individual — X.1',            tp:478, nic:79, seat:15, comp:{ice:0.05,  ev:0.0625}, tpft:{ice:0.01,  ev:0.0125} },
+    { key:'X4',   label:'Private Corporate — X.4',            tp:478, nic:79, seat:15, comp:{ice:0.06,  ev:0.075 }, tpft:{ice:0.015, ev:0.0188} },
+    { key:'TAXI', label:'Taxi',                               tp:665, nic:79, seat:25, comp:{ice:0.07,  ev:0.0875}, tpft:{ice:0.018, ev:0.0225} },
+    { key:'HIRE', label:'Hiring Cars',                        tp:665, nic:79, seat:25, comp:{ice:0.07,  ev:0.0875}, tpft:{ice:0.018, ev:0.0225} },
+    { key:'MINI', label:'Mini Bus',                           tp:665, nic:79, seat:25, comp:{ice:0.07,  ev:0.0875}, tpft:{ice:0.018, ev:0.0225} },
+    { key:'MAXI', label:'Maxi Bus',                           tp:665, nic:79, seat:25, comp:{ice:0.07,  ev:0.0875}, tpft:{ice:0.018, ev:0.0225} },
+    { key:'OG',   label:'Own Goods — Z.300',                  tp:682, nic:79, seat:25, comp:{ice:0.04,  ev:0.05  }, tpft:{ice:0.01,  ev:0.0125} },
+    { key:'ART',  label:'Articulator / Tankers',             tp:973, nic:79, seat:25, comp:{ice:0.08,  ev:0.1   }, tpft:{ice:0.02,  ev:0.025 } },
+    { key:'GC',   label:'General Cartage — Z.301',            tp:814, nic:79, seat:25, comp:{ice:0.06,  ev:0.075 }, tpft:{ice:0.015, ev:0.0188} },
+    { key:'SITE', label:'Special Type — On Site (Z.801/802)', tp:352, nic:79, seat:25, comp:{ice:0.015, ev:0.0188}, tpft:{ice:0.0025,ev:0.0031} },
+    { key:'AMB',  label:'Ambulance / Hearse — Z.802',         tp:654, nic:79, seat:15, comp:{ice:0.07,  ev:0.0875}, tpft:{ice:0.015, ev:0.0188} },
+    { key:'ROAD', label:'Special Type — On Road (Z.802)',     tp:654, nic:79, seat:25, comp:{ice:0.03,  ev:0.0375}, tpft:{ice:0.0075,ev:0.0094} },
+    { key:'GW1',  label:'GW1 Class 1',                        tp:528, nic:79, seat:25, comp:{ice:0.05,  ev:0.0625}, tpft:{ice:0.0075,ev:0.0094} },
+    { key:'GW2',  label:'GW1 Class 2',                        tp:665, nic:79, seat:25, comp:{ice:0.06,  ev:0.075 }, tpft:{ice:0.01,  ev:0.0125} },
+    { key:'GW3',  label:'GW1 Class 3',                        tp:841, nic:79, seat:25, comp:{ice:0.07,  ev:0.0875}, tpft:{ice:0.015, ev:0.0188} },
+    { key:'MC',   label:'Motor Cycle',                        tp:252, nic:79, seat:25, comp:{ice:0.03,  ev:0.035 }, tpft:{ice:0.03,  ev:0.035 } },
+    { key:'MT',   label:'Motor Tricycle / Quadricycle',       tp:352, nic:79, seat:25, comp:{ice:0.03,  ev:0.035 }, tpft:{ice:0.03,  ev:0.035 } }
+  ];
+  const MOTOR_CAT = {};
+  MOTOR_RISK_CATEGORIES.forEach(function(c){ MOTOR_CAT[c.key] = c; });
+
+  // Core premium engine. Discount applies to the office premium (own damage + third-party
+  // + extra-seat loading); the statutory NIC levy is added afterwards and is never discounted.
+  function computeVehiclePremium(inp, cover) {
+    const z = { odRate:0, od:0, tp:0, seatLoad:0, office:0, disc:0, netOffice:0, nic:0, net:0, gross:0 };
+    const cat = MOTOR_CAT[inp.cat];
+    if (!cat) return z;
+    const value = Number(inp.val) || 0;
+    const seats = Number(inp.seats) || 0;
+    const extraSeats = Math.max(0, seats - 5);
+    const seatLoad = extraSeats * cat.seat;
+    const eng = inp.engine === 'EV' ? 'ev' : 'ice';
+    let odRate = 0;
+    if (cover === 'Motor — Comprehensive')                  odRate = cat.comp[eng];
+    else if (cover === 'Motor — Third Party, Fire & Theft') odRate = cat.tpft[eng];
+    const od = value * odRate;
+    const office = od + cat.tp + seatLoad;
+    let disc = 0;
+    const dv = Number(inp.discVal) || 0;
+    if (inp.discType === 'PCT') disc = office * (dv / 100);
+    else                        disc = dv;
+    disc = Math.max(0, Math.min(disc, office));           // clamp 0..office
+    const netOffice = office - disc;
+    return {
+      odRate: odRate, od: od, tp: cat.tp, seatLoad: seatLoad,
+      office: office, disc: disc, netOffice: netOffice, nic: cat.nic,
+      net: netOffice + cat.nic,   // amount client pays
+      gross: office + cat.nic     // before discount
+    };
+  }
+
+  // Read a vehicle row's inputs into the shape computeVehiclePremium expects.
+  function readMotorInputs(id) {
+    const numv = function(sfx){ return parseFloat(String(document.getElementById('mv-'+sfx+'-'+id)?.value||'').replace(/,/g,'')) || 0; };
+    return {
+      cat:      document.getElementById('mv-use-'+id)?.value      || '',
+      engine:   document.getElementById('mv-engine-'+id)?.value   || 'ICE',
+      seats:    numv('seats'),
+      val:      numv('val'),
+      discVal:  numv('disc'),
+      discType: document.getElementById('mv-disctype-'+id)?.value || 'PCT'
+    };
+  }
+
+  const _fmtG = function(n){ return (n||0).toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+
+  // Compact, human-readable derivation shown under each vehicle's premium.
+  function motorBreakdownText(r, inp, cover) {
+    if (!MOTOR_CAT[inp.cat]) return '';
+    const cur = getCurrency();
+    const n = function(x){ return (x||0).toLocaleString('en-GH',{minimumFractionDigits:0,maximumFractionDigits:2}); };
+    const parts = [];
+    if ((cover === 'Motor — Comprehensive' || cover === 'Motor — Third Party, Fire & Theft') && r.od > 0) {
+      const pct = parseFloat((r.odRate*100).toFixed(4));
+      parts.push('Own damage: '+cur+' '+n(inp.val)+' × '+pct+'% = '+cur+' '+n(r.od));
+    }
+    parts.push('Third-party: '+cur+' '+n(r.tp));
+    if (r.seatLoad > 0) parts.push('Extra seats: '+cur+' '+n(r.seatLoad));
+    if (r.disc > 0) parts.push('Less discount'+(inp.discType==='PCT' ? (' '+(Number(inp.discVal)||0)+'%') : '')+': −'+cur+' '+n(r.disc));
+    parts.push('NIC levy: '+cur+' '+n(r.nic));
+    return parts.join('&nbsp; · &nbsp;') + '&nbsp; = &nbsp;<b>'+cur+' '+n(r.net)+'</b>';
+  }
+
+  // Recompute one vehicle row → write the auto premium + breakdown, then refresh fleet totals.
+  function recalcMotorRow(id) {
+    const cover = g('p-class');
+    const inp = readMotorInputs(id);
+    const r = computeVehiclePremium(inp, cover);
+    const premEl = document.getElementById('mv-prem-'+id);
+    if (premEl) premEl.value = r.net > 0 ? _fmtG(r.net) : '';
+    const bd = document.getElementById('mv-bd-'+id);
+    if (bd) bd.innerHTML = MOTOR_CAT[inp.cat] ? motorBreakdownText(r, inp, cover) : '';
+    calcMotorTotals();
+  }
+
+  function recalcAllMotor() {
+    document.querySelectorAll('[id^="mv-"]').forEach(function(el){
+      if (!/^mv-\d+$/.test(el.id)) return;
+      recalcMotorRow(el.id.replace('mv-',''));
+    });
+  }
 
   function addMotorRow() {
     motorCount++;
@@ -840,16 +948,30 @@
       + '<input id="mv-year-' + id + '" placeholder="e.g. 2021" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
       + '<div class="field" style="margin:0;"><label style="font-size:11px;">Reg. Number</label>'
       + '<input id="mv-reg-' + id + '" placeholder="e.g. GR-1234-21" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
-      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Vehicle Use</label>'
-      + '<select id="mv-use-' + id + '" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;font-family:Inter,sans-serif;">'
-      + VEHICLE_USES.map(function(u){return '<option>'+u+'</option>';}).join('')
+      + '<div class="field" style="margin:0;grid-column:1/-1;"><label style="font-size:11px;">Risk category (2026 tariff)</label>'
+      + '<select id="mv-use-' + id + '" onchange="recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;font-family:Inter,sans-serif;">'
+      + MOTOR_RISK_CATEGORIES.map(function(c){return '<option value="'+c.key+'">'+c.label+'</option>';}).join('')
       + '</select></div>'
-      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Value (GHS)</label>'
-      + '<input id="mv-val-' + id + '" placeholder="e.g. 85,000.00" oninput="fmtInput(this);calcMotorTotals()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
-      + '<div class="field" style="margin:0;grid-column:1/-1;"><label style="font-size:11px;">Premium (GHS)</label>'
-      + '<input id="mv-prem-' + id + '" placeholder="e.g. 4,250.00" oninput="fmtInput(this);calcMotorTotals()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
+      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Engine <span style="color:#8a96a3;font-weight:400;">(Comp/TPFT)</span></label>'
+      + '<select id="mv-engine-' + id + '" onchange="recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;font-family:Inter,sans-serif;">'
+      + '<option value="ICE">ICE (fuel)</option><option value="EV">Electric (EV)</option>'
+      + '</select></div>'
+      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Seating capacity</label>'
+      + '<input id="mv-seats-' + id + '" value="5" placeholder="5" inputmode="numeric" oninput="recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
+      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Value / Sum insured (' + getCurrency() + ')</label>'
+      + '<input id="mv-val-' + id + '" placeholder="e.g. 85,000.00" oninput="fmtInput(this);recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
+      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Discount</label>'
+      + '<div style="display:flex;gap:4px;">'
+      + '<input id="mv-disc-' + id + '" placeholder="0" oninput="fmtInput(this);recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;flex:1;min-width:0;box-sizing:border-box;font-family:Inter,sans-serif;" />'
+      + '<select id="mv-disctype-' + id + '" onchange="recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 4px;border:1px solid var(--border);border-radius:7px;width:58px;flex-shrink:0;font-family:Inter,sans-serif;">'
+      + '<option value="PCT">%</option><option value="AMT">Amt</option>'
+      + '</select></div></div>'
+      + '<div class="field" style="margin:0;grid-column:1/-1;"><label style="font-size:11px;">Premium (' + getCurrency() + ') <span style="color:#8a96a3;font-weight:400;">— auto-calculated</span></label>'
+      + '<input id="mv-prem-' + id + '" readonly placeholder="Auto-calculated from tariff" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;background:#eef2f6;color:#1a2e4a;font-weight:600;cursor:default;" />'
+      + '<div id="mv-bd-' + id + '" style="font-size:10px;color:#6b7d8f;margin-top:4px;line-height:1.5;"></div></div>'
       + '</div>';
     document.getElementById('motor-rows-container').appendChild(wrap);
+    recalcMotorRow(id);
   }
 
   function removeMotorRow(id) {
@@ -881,14 +1003,23 @@
     document.querySelectorAll('[id^="mv-"]').forEach(function(el) {
       if (!/^mv-\d+$/.test(el.id)) return;
       var id = el.id.replace('mv-','');
+      var inp = readMotorInputs(id);
+      var calc = computeVehiclePremium(inp, g('p-class'));
+      var catObj = MOTOR_CAT[inp.cat];
       rows.push({
         make:  document.getElementById('mv-make-'+id)?.value.trim()  || '',
         model: document.getElementById('mv-model-'+id)?.value.trim() || '',
         year:  document.getElementById('mv-year-'+id)?.value.trim()  || '',
         reg:   document.getElementById('mv-reg-'+id)?.value.trim()   || '',
-        use:   document.getElementById('mv-use-'+id)?.value          || '',
+        use:      inp.cat,                                        // stored risk-category key
+        catLabel: catObj ? catObj.label : (inp.cat || ''),       // friendly label for the quote
+        engine:   inp.engine,
+        seats:    document.getElementById('mv-seats-'+id)?.value.trim() || '',
         val:   document.getElementById('mv-val-'+id)?.value.trim()   || '',
-        prem:  document.getElementById('mv-prem-'+id)?.value.trim()  || ''
+        discVal:  document.getElementById('mv-disc-'+id)?.value.trim()  || '',
+        discType: inp.discType,
+        prem:  document.getElementById('mv-prem-'+id)?.value.trim()  || '',   // net (formatted)
+        _calc: calc
       });
     });
     return rows;
@@ -1059,7 +1190,7 @@
     if (!rawPrem) { preview.style.display = 'none'; return; }
 
     const isVatable = pClass && !isBondClass(pClass) && !isMotorClass(pClass);
-    const vatAmt    = 0;   // VAT removed from schedules
+    const vatAmt    = isVatable ? rawPrem * VAT_RATE : 0;
     const total     = rawPrem + vatAmt;
 
     const cur = getCurrency();
@@ -1175,6 +1306,7 @@
     if (isMotor) {
       const wrappers = [...document.querySelectorAll('[id^="mv-"]')].filter(function(el){ return /^mv-\d+$/.test(el.id); });
       if (wrappers.length === 0) addMotorRow();
+      recalcAllMotor();   // recompute premiums for the newly-selected cover (TP / TPFT / Comprehensive)
     }
 
     const note = document.getElementById('basic-prem-note');
@@ -1353,8 +1485,10 @@
       const isMotor = isMotorClass(pClass);
       // Pre-compute motor totals needed for sheet logging and quote rendering
       const motorVehiclesForCalc = isMotor ? getMotorRows() : [];
-      const motorGrandPrem = motorVehiclesForCalc.reduce((s,r)=>s+(parseFloat(String(r.prem||0).replace(/,/g,''))||0),0);
-      const motorGrandVal  = motorVehiclesForCalc.reduce((s,r)=>s+(parseFloat(String(r.val||0).replace(/,/g,''))||0),0);
+      const motorGrandPrem  = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.net:0),0);       // net (after discount)
+      const motorGrandGross = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.gross:0),0);     // before discount
+      const motorGrandDisc  = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.disc:0),0);      // total discount
+      const motorGrandVal   = motorVehiclesForCalc.reduce((s,r)=>s+(parseFloat(String(r.val||0).replace(/,/g,''))||0),0);
 
       const _now = new Date().toISOString();
       logQuoteToSheet({
@@ -1397,8 +1531,8 @@
 
       // For motor: effectiveGross = sum of all vehicle premiums (motorVehiclesForCalc/Prem/Val already computed above)
       const effectiveGross = isMotor ? motorGrandPrem : grossPrem;
-      const vatAmt         = 0;   // VAT removed from all schedules
-      const totalPrem      = effectiveGross + extraTotal;
+      const vatAmt         = isVatable ? effectiveGross * VAT_RATE : 0;
+      const totalPrem      = effectiveGross + vatAmt + extraTotal;
 
       // rawPrem kept for compatibility
       const rawPrem    = effectiveGross;
@@ -1474,9 +1608,9 @@
       const motorSubjectHTML = isMotor
         ? ('<table style="'+S.tbl+'">'
           +'<thead><tr>'
-          +'<th style="'+S.thNav+';text-align:left;width:28%;">Vehicle</th>'
+          +'<th style="'+S.thNav+';text-align:left;width:26%;">Vehicle</th>'
           +'<th style="'+S.thNavR+';width:14%;">Reg. No.</th>'
-          +'<th style="'+S.thNavR+';width:20%;">Use</th>'
+          +'<th style="'+S.thNavR+';width:22%;">Category</th>'
           +'<th style="'+S.thNavR+';width:19%;">Value ('+pCur+')</th>'
           +'<th style="'+S.thNavR+';width:19%;">Premium ('+pCur+')</th>'
           +'</tr></thead><tbody>'
@@ -1485,19 +1619,26 @@
               return '<tr>'
                 +'<td style="'+S.td+'">'+desc+'</td>'
                 +'<td style="'+S.tdC+'">'+(r.reg  || '—')+'</td>'
-                +'<td style="'+S.tdC+'">'+(r.use  || '—')+'</td>'
+                +'<td style="'+S.tdC+'">'+(r.catLabel || '—')+'</td>'
                 +'<td style="'+S.tdR+'">'+(r.val  ? fmt(parseFloat(String(r.val).replace(/,/g,'')))  : '—')+'</td>'
-                +'<td style="'+S.tdR+'">'+(r.prem ? fmt(parseFloat(String(r.prem).replace(/,/g,''))) : '—')+'</td>'
+                +'<td style="'+S.tdR+'">'+((r._calc&&r._calc.net) ? fmt(r._calc.net) : '—')+'</td>'
                 +'</tr>';
             }).join('')
-          +(motorVehiclesForCalc.length > 1
-            ? '<tr><td colspan="3" style="'+S.tdBold+'">Sub-Total</td>'
-              +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
-              +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandPrem)+'</td></tr>'
-            : '')
+          +(motorGrandDisc > 0
+            ? '<tr><td colspan="3" style="'+S.tdBold+'">Premium before discount</td>'
+                +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
+                +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandGross)+'</td></tr>'
+              +'<tr><td colspan="4" style="'+S.tdBold+'">Less: Discount</td>'
+                +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandDisc)+'</td></tr>'
+            : (motorVehiclesForCalc.length > 1
+                ? '<tr><td colspan="3" style="'+S.tdBold+'">Sub-Total</td>'
+                  +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
+                  +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandPrem)+'</td></tr>'
+                : ''))
           +'<tr><td colspan="4" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td>'
           +'<td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPrem)+'</td></tr>'
-          +'</tbody></table>')
+          +'</tbody></table>'
+          +'<div style="font-size:9px;color:#8a96a3;margin-top:4px;line-height:1.45;">Premiums are computed on the 2026 NIC Motor Tariff and are inclusive of the statutory NIC contribution (GHS 79 per vehicle).</div>')
         : '';
 
       // ── Fixed layout
@@ -1545,7 +1686,9 @@
       })();
 
       const xPremHTML = allExtraRows.map(r=>'<tr><td colspan="2" style="'+S.td+'">'+r.l+'</td><td style="'+S.tdR+'">'+fmt(r.v)+'</td></tr>').join('');
-      const vatHTML = '';
+      const vatHTML = (isVatable && vatAmt > 0)
+        ? '<tr><td colspan="2" style="'+S.td+'">VAT ('+(VAT_RATE*100)+'%)</td><td style="'+S.tdR+'">'+fmt(vatAmt)+'</td></tr>'
+        : '';
 
       const condHTML = notesLines.length > 0
         ? notesLines.map(l=>'<div style="font-size:'+fsS+';margin-bottom:2px;line-height:1.45;padding-left:0;">'+l+'</div>').join('')
@@ -1595,8 +1738,8 @@
             +'</tr></thead>'
             +'<tbody>'
             +tsiHTML
-            +xPremHTML
             +vatHTML
+            +xPremHTML
             +'<tr><td colspan="2" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td><td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPrem)+'</td></tr>'
             +'</tbody></table>'
         )
@@ -1818,8 +1961,12 @@
         model: document.getElementById('mv-model-'+id)?.value || '',
         year:  document.getElementById('mv-year-'+id)?.value  || '',
         reg:   document.getElementById('mv-reg-'+id)?.value   || '',
-        use:   document.getElementById('mv-use-'+id)?.value   || '',
-        val:   document.getElementById('mv-val-'+id)?.value   || '',
+        use:      document.getElementById('mv-use-'+id)?.value      || '',
+        engine:   document.getElementById('mv-engine-'+id)?.value   || 'ICE',
+        seats:    document.getElementById('mv-seats-'+id)?.value    || '',
+        val:      document.getElementById('mv-val-'+id)?.value      || '',
+        discVal:  document.getElementById('mv-disc-'+id)?.value     || '',
+        discType: document.getElementById('mv-disctype-'+id)?.value || 'PCT',
         prem:  document.getElementById('mv-prem-'+id)?.value  || ''
       });
     });
@@ -1905,9 +2052,20 @@
       var id = motorCount;
       var sv = function(fid, val){ var el = document.getElementById(fid+id); if(el) el.value = val||''; };
       sv('mv-make-', r.make); sv('mv-model-', r.model); sv('mv-year-', r.year);
-      sv('mv-reg-',  r.reg);  sv('mv-prem-',  r.prem);  sv('mv-val-',  r.val);
-      var useEl = document.getElementById('mv-use-'+id);
-      if (useEl && r.use) useEl.value = r.use;
+      sv('mv-reg-',  r.reg);  sv('mv-val-',  r.val);
+      sv('mv-seats-', (r.seats!==undefined && r.seats!=='') ? r.seats : '5');
+      sv('mv-disc-',  r.discVal);
+      var setSel = function(fid, val){ var el = document.getElementById(fid+id); if(el && val) el.value = val; };
+      setSel('mv-use-',      r.use);
+      setSel('mv-engine-',   r.engine);
+      setSel('mv-disctype-', r.discType);
+      // Recompute against the tariff when the saved category is recognised;
+      // otherwise keep the premium exactly as it was saved (legacy quotes).
+      if (MOTOR_CAT[document.getElementById('mv-use-'+id)?.value]) {
+        recalcMotorRow(id);
+      } else {
+        sv('mv-prem-', r.prem);
+      }
     });
     if ((state.motorRows||[]).length) calcMotorTotals();
 
