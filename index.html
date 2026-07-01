@@ -847,10 +847,22 @@
   const MOTOR_CAT = {};
   MOTOR_RISK_CATEGORIES.forEach(function(c){ MOTOR_CAT[c.key] = c; });
 
-  // Core premium engine. Discount applies to the office premium (own damage + third-party
-  // + extra-seat loading); the statutory NIC levy is added afterwards and is never discounted.
+  // Private-use categories get the 10% excess buy-back loading; all others (commercial) get 15%.
+  const PRIVATE_CATS = { X1:true, X4:true };
+  function isPrivateCat(catKey){ return !!PRIVATE_CATS[catKey]; }
+  function buyBackRateFor(catKey){ return isPrivateCat(catKey) ? 0.10 : 0.15; }
+  // Standard excess wording shown on the schedule: 15% for commercial vehicles, 10% for private.
+  function defaultExcessText(catKey){
+    return (MOTOR_CAT[catKey] && !isPrivateCat(catKey)) ? '15% each and every loss' : '10% each and every loss';
+  }
+
+  // Core premium engine.
+  //  • Discount is applied to the OWN-DAMAGE premium only, BEFORE the third-party
+  //    premium, extra-seat loading and statutory NIC levy are added.
+  //  • Excess buy-back (Comprehensive only, when the client buys back the excess) adds
+  //    a loading of 10% (private) or 15% (commercial) of the own-damage premium.
   function computeVehiclePremium(inp, cover) {
-    const z = { odRate:0, od:0, tp:0, seatLoad:0, office:0, disc:0, netOffice:0, nic:0, net:0, gross:0 };
+    const z = { odRate:0, od:0, tp:0, seatLoad:0, buyBackRate:0, buyBack:0, discBase:0, disc:0, odNet:0, nic:0, net:0, gross:0 };
     const cat = MOTOR_CAT[inp.cat];
     if (!cat) return z;
     const value = Number(inp.val) || 0;
@@ -858,22 +870,35 @@
     const extraSeats = Math.max(0, seats - 5);
     const seatLoad = extraSeats * cat.seat;
     const eng = inp.engine === 'EV' ? 'ev' : 'ice';
+    const isComp = (cover === 'Motor — Comprehensive');
+    const isTPFT = (cover === 'Motor — Third Party, Fire & Theft');
     let odRate = 0;
-    if (cover === 'Motor — Comprehensive')                  odRate = cat.comp[eng];
-    else if (cover === 'Motor — Third Party, Fire & Theft') odRate = cat.tpft[eng];
+    if (isComp)      odRate = cat.comp[eng];
+    else if (isTPFT) odRate = cat.tpft[eng];
     const od = value * odRate;
-    const office = od + cat.tp + seatLoad;
+
+    // Excess buy-back loading — Comprehensive only, when the excess is bought back.
+    let buyBackRate = 0, buyBack = 0;
+    if (isComp && inp.excess === 'BUYBACK' && od > 0) {
+      buyBackRate = buyBackRateFor(inp.cat);
+      buyBack = od * buyBackRate;
+    }
+
+    // Discount applies to the own-damage premium only (before TP + seats + NIC).
+    const discBase = od;
     let disc = 0;
     const dv = Number(inp.discVal) || 0;
-    if (inp.discType === 'PCT') disc = office * (dv / 100);
+    if (inp.discType === 'PCT') disc = discBase * (dv / 100);
     else                        disc = dv;
-    disc = Math.max(0, Math.min(disc, office));           // clamp 0..office
-    const netOffice = office - disc;
+    disc = Math.max(0, Math.min(disc, discBase));   // clamp 0..own-damage
+    const odNet = discBase - disc;
+
     return {
       odRate: odRate, od: od, tp: cat.tp, seatLoad: seatLoad,
-      office: office, disc: disc, netOffice: netOffice, nic: cat.nic,
-      net: netOffice + cat.nic,   // amount client pays
-      gross: office + cat.nic     // before discount
+      buyBackRate: buyBackRate, buyBack: buyBack,
+      discBase: discBase, disc: disc, odNet: odNet, nic: cat.nic,
+      net:   odNet + buyBack + cat.tp + seatLoad + cat.nic,   // amount client pays
+      gross: od    + buyBack + cat.tp + seatLoad + cat.nic    // before discount
     };
   }
 
@@ -886,7 +911,8 @@
       seats:    numv('seats'),
       val:      numv('val'),
       discVal:  numv('disc'),
-      discType: document.getElementById('mv-disctype-'+id)?.value || 'PCT'
+      discType: document.getElementById('mv-disctype-'+id)?.value || 'PCT',
+      excess:   document.getElementById('mv-excess-'+id)?.value   || 'APPLY'
     };
   }
 
@@ -897,22 +923,37 @@
     if (!MOTOR_CAT[inp.cat]) return '';
     const cur = getCurrency();
     const n = function(x){ return (x||0).toLocaleString('en-GH',{minimumFractionDigits:0,maximumFractionDigits:2}); };
+    const isComp = (cover === 'Motor — Comprehensive');
+    const isTPFT = (cover === 'Motor — Third Party, Fire & Theft');
+    const dv = Number(inp.discVal) || 0;
     const parts = [];
-    if ((cover === 'Motor — Comprehensive' || cover === 'Motor — Third Party, Fire & Theft') && r.od > 0) {
+    if ((isComp || isTPFT) && r.od > 0) {
       const pct = parseFloat((r.odRate*100).toFixed(4));
       parts.push('Own damage: '+cur+' '+n(inp.val)+' × '+pct+'% = '+cur+' '+n(r.od));
     }
+    if (r.disc > 0) parts.push('Less discount'+(inp.discType==='PCT' ? (' '+dv+'%') : '')+': −'+cur+' '+n(r.disc));
+    if (r.buyBack > 0) parts.push('Excess buy-back ('+parseFloat((r.buyBackRate*100).toFixed(2))+'%): +'+cur+' '+n(r.buyBack));
     parts.push('Third-party: '+cur+' '+n(r.tp));
     if (r.seatLoad > 0) parts.push('Extra seats: '+cur+' '+n(r.seatLoad));
-    if (r.disc > 0) parts.push('Less discount'+(inp.discType==='PCT' ? (' '+(Number(inp.discVal)||0)+'%') : '')+': −'+cur+' '+n(r.disc));
     parts.push('NIC levy: '+cur+' '+n(r.nic));
+    if (!isComp && !isTPFT && dv > 0) parts.push('(discount N/A — no own-damage premium)');
     return parts.join('&nbsp; · &nbsp;') + '&nbsp; = &nbsp;<b>'+cur+' '+n(r.net)+'</b>';
   }
 
   // Recompute one vehicle row → write the auto premium + breakdown, then refresh fleet totals.
   function recalcMotorRow(id) {
     const cover = g('p-class');
+    // Excess control is Comprehensive-only; the excess-wording box shows only when excess applies.
+    const isComp = (cover === 'Motor — Comprehensive');
+    const exWrap = document.getElementById('mv-excess-wrap-'+id);
+    const exSel  = document.getElementById('mv-excess-'+id);
+    const exText = document.getElementById('mv-excesstext-'+id);
+    if (exWrap) exWrap.style.display = isComp ? 'block' : 'none';
+    if (exText) exText.style.display = (isComp && exSel && exSel.value === 'APPLY') ? 'block' : 'none';
     const inp = readMotorInputs(id);
+    // Keep the excess wording in step with the vehicle type (10% private / 15% commercial),
+    // unless the user has typed their own wording.
+    if (exText && exText.dataset.touched !== '1') exText.value = defaultExcessText(inp.cat);
     const r = computeVehiclePremium(inp, cover);
     const premEl = document.getElementById('mv-prem-'+id);
     if (premEl) premEl.value = r.net > 0 ? _fmtG(r.net) : '';
@@ -966,6 +1007,12 @@
       + '<select id="mv-disctype-' + id + '" onchange="recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 4px;border:1px solid var(--border);border-radius:7px;width:58px;flex-shrink:0;font-family:Inter,sans-serif;">'
       + '<option value="PCT">%</option><option value="AMT">Amt</option>'
       + '</select></div></div>'
+      + '<div class="field" id="mv-excess-wrap-' + id + '" style="margin:0;grid-column:1/-1;display:none;"><label style="font-size:11px;">Excess <span style="color:#8a96a3;font-weight:400;">(Comprehensive)</span></label>'
+      + '<select id="mv-excess-' + id + '" onchange="recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;font-family:Inter,sans-serif;">'
+      + '<option value="APPLY">Excess applies — shown on schedule</option>'
+      + '<option value="BUYBACK">No excess — client buys back (+10% private / +15% commercial)</option>'
+      + '</select>'
+      + '<input id="mv-excesstext-' + id + '" value="10% each and every loss" placeholder="e.g. 10% each and every loss" oninput="this.dataset.touched=\'1\';recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;margin-top:4px;" /></div>'
       + '<div class="field" style="margin:0;grid-column:1/-1;"><label style="font-size:11px;">Premium (' + getCurrency() + ') <span style="color:#8a96a3;font-weight:400;">— auto-calculated</span></label>'
       + '<input id="mv-prem-' + id + '" readonly placeholder="Auto-calculated from tariff" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;background:#eef2f6;color:#1a2e4a;font-weight:600;cursor:default;" />'
       + '<div id="mv-bd-' + id + '" style="font-size:10px;color:#6b7d8f;margin-top:4px;line-height:1.5;"></div></div>'
@@ -1018,6 +1065,8 @@
         val:   document.getElementById('mv-val-'+id)?.value.trim()   || '',
         discVal:  document.getElementById('mv-disc-'+id)?.value.trim()  || '',
         discType: inp.discType,
+        excess:     inp.excess,
+        excessText: document.getElementById('mv-excesstext-'+id)?.value.trim() || '',
         prem:  document.getElementById('mv-prem-'+id)?.value.trim()  || '',   // net (formatted)
         _calc: calc
       });
@@ -1605,6 +1654,32 @@
       };
 
       // ── Motor vehicle table HTML
+
+      // Discount % suffix for the schedule — shown only when every discounted vehicle uses the same %.
+      let motorDiscPctLabel = '';
+      if (isMotor) {
+        const discd = motorVehiclesForCalc.filter(function(r){ return r._calc && r._calc.disc > 0; });
+        if (discd.length && discd.every(function(r){ return r.discType === 'PCT'; })) {
+          const pcts = discd.map(function(r){ return parseFloat(String(r.discVal||'').replace(/,/g,'')) || 0; });
+          if (pcts.every(function(p){ return p === pcts[0]; }) && pcts[0] > 0) {
+            motorDiscPctLabel = ' (' + parseFloat(pcts[0].toFixed(2)) + '%)';
+          }
+        }
+      }
+
+      // Excess block for the schedule — Comprehensive only.
+      let motorExcessHTML = '';
+      if (isMotor && pClass === 'Motor — Comprehensive' && motorVehiclesForCalc.length) {
+        const multi = motorVehiclesForCalc.length > 1;
+        const lines = motorVehiclesForCalc.map(function(r){
+          const who = multi ? (((r.reg && r.reg!=='—') ? r.reg : ([r.make,r.model].filter(Boolean).join(' ') || 'Vehicle')) + ': ') : '';
+          if (r.excess === 'BUYBACK') return who + 'Nil — excess bought back';
+          return who + ((r.excessText && r.excessText.trim()) ? r.excessText.trim() : '10% each and every loss');
+        });
+        motorExcessHTML = '<div style="font-size:'+fsS+';margin-top:6px;line-height:1.5;color:#1a2e4a;"><strong>Excess:</strong> '
+          + (multi ? '<br>' + lines.join('<br>') : lines[0]) + '</div>';
+      }
+
       const motorSubjectHTML = isMotor
         ? ('<table style="'+S.tbl+'">'
           +'<thead><tr>'
@@ -1628,7 +1703,7 @@
             ? '<tr><td colspan="3" style="'+S.tdBold+'">Premium before discount</td>'
                 +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
                 +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandGross)+'</td></tr>'
-              +'<tr><td colspan="4" style="'+S.tdBold+'">Less: Discount</td>'
+              +'<tr><td colspan="4" style="'+S.tdBold+'">Less: Discount'+motorDiscPctLabel+'</td>'
                 +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandDisc)+'</td></tr>'
             : (motorVehiclesForCalc.length > 1
                 ? '<tr><td colspan="3" style="'+S.tdBold+'">Sub-Total</td>'
@@ -1638,7 +1713,8 @@
           +'<tr><td colspan="4" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td>'
           +'<td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPrem)+'</td></tr>'
           +'</tbody></table>'
-          +'<div style="font-size:9px;color:#8a96a3;margin-top:4px;line-height:1.45;">Premiums are computed on the 2026 NIC Motor Tariff and are inclusive of the statutory NIC contribution (GHS 79 per vehicle).</div>')
+          +'<div style="font-size:9px;color:#8a96a3;margin-top:4px;line-height:1.45;">Premiums are computed on the 2026 NIC Motor Tariff and are inclusive of the statutory NIC contribution (GHS 79 per vehicle).</div>'
+          + motorExcessHTML)
         : '';
 
       // ── Fixed layout
@@ -1967,6 +2043,8 @@
         val:      document.getElementById('mv-val-'+id)?.value      || '',
         discVal:  document.getElementById('mv-disc-'+id)?.value     || '',
         discType: document.getElementById('mv-disctype-'+id)?.value || 'PCT',
+        excess:     document.getElementById('mv-excess-'+id)?.value     || 'APPLY',
+        excessText: document.getElementById('mv-excesstext-'+id)?.value || '',
         prem:  document.getElementById('mv-prem-'+id)?.value  || ''
       });
     });
@@ -2055,10 +2133,17 @@
       sv('mv-reg-',  r.reg);  sv('mv-val-',  r.val);
       sv('mv-seats-', (r.seats!==undefined && r.seats!=='') ? r.seats : '5');
       sv('mv-disc-',  r.discVal);
+      // Preserve the saved excess wording exactly; legacy quotes (no saved wording)
+      // fall through to recalcMotorRow, which fills the category-appropriate default.
+      if (r.excessText !== undefined && r.excessText !== '') {
+        var _etx = document.getElementById('mv-excesstext-'+id);
+        if (_etx) { _etx.value = r.excessText; _etx.dataset.touched = '1'; }
+      }
       var setSel = function(fid, val){ var el = document.getElementById(fid+id); if(el && val) el.value = val; };
       setSel('mv-use-',      r.use);
       setSel('mv-engine-',   r.engine);
       setSel('mv-disctype-', r.discType);
+      setSel('mv-excess-',   r.excess);
       // Recompute against the tariff when the saved category is recognised;
       // otherwise keep the premium exactly as it was saved (legacy quotes).
       if (MOTOR_CAT[document.getElementById('mv-use-'+id)?.value]) {
