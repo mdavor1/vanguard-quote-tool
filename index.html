@@ -432,9 +432,9 @@
     </div>
 
     <!-- ④ SUBJECT MATTER & SUM INSURED -->
-    <div class="sec-hdr"><i class="ti ti-building"></i> Subject matter &amp; sum insured</div>
+    <div class="sec-hdr" id="sec-hdr-subject"><i class="ti ti-building"></i> Subject matter &amp; sum insured</div>
     <div class="field">
-      <label>Subject matter insured</label>
+      <label id="lbl-risk">Subject matter insured</label>
       <input id="p-risk" placeholder="e.g. Office building and contents, Suzuki Grand Vitara GR-1234" />
     </div>
     <div class="field">
@@ -461,19 +461,25 @@
     <!-- TSI / Subject Matter Breakdown — available for all classes -->
     <div id="tsi-breakdown-section">
       <div class="field">
-        <label>Sum insured breakdown <span style="font-size:10px;color:#2E75B6;font-weight:400;">— optional, add individual items</span></label>
-        <select onchange="if(this.value){addTSIRow(this.value,'');this.value=''}" style="font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;width:100%;font-family:Inter,sans-serif;">
+        <label id="lbl-tsi-breakdown">Sum insured breakdown <span style="font-size:10px;color:#2E75B6;font-weight:400;">— optional, add individual items</span></label>
+        <select id="tsi-breakdown-select" onchange="if(this.value){addTSIRow(this.value,'');this.value=''}" style="font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;width:100%;font-family:Inter,sans-serif;">
           <option value="">+ Add breakdown item...</option>
-          <option>Buildings</option>
-          <option>Contents</option>
-          <option>Plant &amp; Equipment</option>
-          <option>Stock in Trade</option>
-          <option>Machinery</option>
-          <option>Electronic Equipment</option>
-          <option>Contract Works</option>
-          <option>Third Party Liability</option>
-          <option>Loss of Profits</option>
-          <option>Other (specify)</option>
+          <option class="opt-property">Buildings</option>
+          <option class="opt-property">Contents</option>
+          <option class="opt-property">Plant &amp; Equipment</option>
+          <option class="opt-property">Stock in Trade</option>
+          <option class="opt-property">Machinery</option>
+          <option class="opt-property">Electronic Equipment</option>
+          <option class="opt-property">Contract Works</option>
+          <option class="opt-property">Third Party Liability</option>
+          <option class="opt-property">Loss of Profits</option>
+          <option class="opt-property">Other (specify)</option>
+          <option class="opt-wc" style="display:none;">Medical Expense</option>
+          <option class="opt-wc" style="display:none;">Permanent Total Disability (PTD)</option>
+          <option class="opt-wc" style="display:none;">Permanent Partial Disability (PPD)</option>
+          <option class="opt-wc" style="display:none;">Temporary Total Disability (TTD)</option>
+          <option class="opt-wc" style="display:none;">Fatal Injury</option>
+          <option class="opt-wc" style="display:none;">Other (specify)</option>
         </select>
       </div>
       <div id="tsi-rows-container"></div>
@@ -1033,7 +1039,10 @@
     const sumLbl   = document.getElementById('lbl-sum');
     const basicLbl = document.getElementById('lbl-basic-prem');
     const premLbl  = document.getElementById('lbl-prem');
-    if (sumLbl)   sumLbl.textContent   = 'Total sum insured (' + cur + ')';
+    const _isWC = isWCClass(document.getElementById('p-class')?.value || '');
+    if (sumLbl)   sumLbl.textContent = _isWC
+      ? 'Wages / salaries — annual (' + cur + ')'
+      : 'Total sum insured (' + cur + ')';
     if (basicLbl) basicLbl.textContent = 'Basic premium (' + cur + ')';
     if (premLbl)  premLbl.textContent  = 'Gross premium (' + cur + ')';
     calcVAT();
@@ -1170,6 +1179,42 @@
 
     const note = document.getElementById('basic-prem-note');
     if (note) note.style.display = isWCClass(pClass) ? 'block' : 'none';
+
+    // ── WC-specific label and dropdown swaps
+    const isWC           = isWCClass(pClass);
+    const riskLbl        = document.getElementById('lbl-risk');
+    const sumLbl         = document.getElementById('lbl-sum');
+    const secHdrSubject  = document.getElementById('sec-hdr-subject');
+    const tsiLbl         = document.getElementById('lbl-tsi-breakdown');
+    const tsiSelect      = document.getElementById('tsi-breakdown-select');
+
+    if (riskLbl)       riskLbl.textContent       = isWC ? 'Nature of work / occupation' : 'Subject matter insured';
+    if (secHdrSubject) secHdrSubject.innerHTML    = isWC
+      ? '<i class="ti ti-hardhat"></i> Workforce &amp; wages'
+      : '<i class="ti ti-building"></i> Subject matter &amp; sum insured';
+
+    // Update currency-dependent sum label
+    const _cur = (document.getElementById('p-currency')?.value || 'GHS').split(' ')[0];
+    if (sumLbl) sumLbl.textContent = isWC
+      ? 'Wages / salaries — annual (' + _cur + ')'
+      : 'Total sum insured (' + _cur + ')';
+
+    if (tsiLbl) tsiLbl.innerHTML = isWC
+      ? 'Add-on benefits <span style="font-size:10px;color:#2E75B6;font-weight:400;">— Medical Expense, PTD, etc.</span>'
+      : 'Sum insured breakdown <span style="font-size:10px;color:#2E75B6;font-weight:400;">— optional, add individual items</span>';
+
+    // Show WC options / hide property options in the TSI dropdown (and vice versa)
+    if (tsiSelect) {
+      tsiSelect.querySelectorAll('.opt-property').forEach(o => o.style.display = isWC ? 'none' : '');
+      tsiSelect.querySelectorAll('.opt-wc').forEach(o => o.style.display = isWC ? '' : 'none');
+      tsiSelect.options[0].text = isWC ? '+ Add benefit item...' : '+ Add breakdown item...';
+    }
+
+    // Update p-risk placeholder
+    const pRiskInput = document.getElementById('p-risk');
+    if (pRiskInput) pRiskInput.placeholder = isWC
+      ? 'e.g. Construction workers, Office staff, Factory employees'
+      : 'e.g. Office building and contents, Suzuki Grand Vitara GR-1234';
 
     if (!isMotor) calcGrossPrem();
 
@@ -1321,7 +1366,10 @@
         sumInsured:  isMotor ? String(motorGrandVal)  : String(pSum).replace(/,/g,''),
         premium:     isMotor ? String(motorGrandPrem) : String(pPrem).replace(/,/g,''),
         currency:    pCur,
-        branch:      coBranch,
+        periodFrom:  pStart,
+        periodTo:    pEnd,
+        branch:      sigRole,
+        notes:       tNotes,
         clientEmail: '',
         action:      _editingExistingQuote ? 'update' : 'append',
         lastUpdated: _editingExistingQuote ? _now : ''
