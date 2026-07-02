@@ -492,6 +492,12 @@
       <button class="add-btn" onclick="addMotorRow()" style="margin-bottom:4px;">
         <i class="ti ti-plus"></i> Add vehicle
       </button>
+      <div class="field" id="motor-fleet-wrap" style="margin-top:6px;display:none;">
+        <label>Fleet discount (%) <span style="color:#8a96a3;font-weight:400;">— applies across all vehicles</span></label>
+        <input id="motor-fleet-disc" placeholder="e.g. 5" inputmode="decimal" oninput="recalcAllMotor()"
+          style="font-size:13px;" />
+        <div id="motor-fleet-note" style="font-size:10.5px;color:#6b7d8f;margin-top:4px;line-height:1.5;"></div>
+      </div>
       <div class="field" style="margin-top:6px;">
         <label id="lbl-motor-total">Total fleet premium (GHS)</label>
         <input id="motor-total-prem" type="text" readonly
@@ -548,6 +554,14 @@
     <div class="sec-hdr"><i class="ti ti-building-bank"></i> Bank / payment details</div>
     <div class="field">
       <textarea id="pay-intro" rows="2">Kindly use the details below for bank payments or issue a cheque in the name of Vanguard Assurance Co. Ltd to enable us issue policy document.</textarea>
+    </div>
+    <div class="field">
+      <label for="pay-branch">Paying branch / account</label>
+      <select id="pay-branch" onchange="applyBranch()">
+        <option value="Head Office">Head Office</option>
+        <option value="East Legon">East Legon</option>
+        <option value="Other">Other (enter details)</option>
+      </select>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;">
       <div>
@@ -735,6 +749,67 @@
   function closeModal() { document.getElementById('dup-modal').classList.remove('active'); }
 
   // ── BANK FIELD HELPERS ──────────────────────────────────
+  // Per-branch bank & mobile-money presets. Selecting a branch repopulates both columns.
+  // "Other" lays out a blank template the officer fills in with their preferred details.
+  const BRANCH_DETAILS = {
+    'Head Office': {
+      bank: [
+        ['Bank', 'Ecobank Ghana, Head Office Branch'],
+        ['Account Name', 'Vanguard Assurance Co. Ltd.'],
+        ['Account No.', '1441001519859'],
+        ['Currency', 'Cedi'],
+        ['Swift Code', 'ECOCGHAC']
+      ],
+      momo: [
+        ['Name', 'Vanguard Assurance'],
+        ['Momo Number', '0245093045']
+      ]
+    },
+    'East Legon': {
+      bank: [
+        ['Bank', 'Stanbic Bank'],
+        ['Branch', 'Accra Main'],
+        ['Account Name', 'Vanguard Assurance Company Ltd.'],
+        ['Account No.', '9040002318231'],
+        ['Currency', 'Cedi'],
+        ['Swift Code', 'SBICGHAC'],
+        ['Sort Code', '190110']
+      ],
+      momo: [
+        ['Name', 'Vanguard Assurance, East Legon'],
+        ['MoMo (All Networks)', '*447*5134#']
+      ]
+    },
+    'Other': {
+      bank: [
+        ['Bank', ''],
+        ['Branch', ''],
+        ['Account Name', ''],
+        ['Account No.', ''],
+        ['Currency', ''],
+        ['Swift Code', ''],
+        ['Sort Code', '']
+      ],
+      momo: [
+        ['Name', ''],
+        ['Momo Number', '']
+      ]
+    }
+  };
+
+  // Repopulate the bank & mobile-money rows from the selected branch preset.
+  function applyBranch() {
+    const sel = document.getElementById('pay-branch');
+    const branch = (sel && sel.value) || 'Head Office';
+    const data = BRANCH_DETAILS[branch] || BRANCH_DETAILS['Head Office'];
+    const bc = document.getElementById('bank-container');
+    const mc = document.getElementById('momo-container');
+    if (bc) bc.innerHTML = '';
+    if (mc) mc.innerHTML = '';
+    data.bank.forEach(function(row){ addBankField('bank', row[0], row[1]); });
+    data.momo.forEach(function(row){ addBankField('momo', row[0], row[1]); });
+  }
+
   function addBankField(target, label, val) {
     if (target !== 'bank' && target !== 'momo') {
       val = label; label = target; target = 'bank';
@@ -766,7 +841,7 @@
       const id = row.id.replace('brow-','');
       const l = document.getElementById('bk-l-'+id)?.value.trim();
       const v = document.getElementById('bk-v-'+id)?.value.trim();
-      if (l || v) rows.push({l: l||'', v: v||''});
+      if (v) rows.push({l: l||'', v: v});
     });
     return rows;
   }
@@ -777,7 +852,7 @@
       const id = row.id.replace('mrow-','');
       const l = document.getElementById('bk-l-'+id)?.value.trim();
       const v = document.getElementById('bk-v-'+id)?.value.trim();
-      if (l || v) rows.push({l: l||'', v: v||''});
+      if (v) rows.push({l: l||'', v: v});
     });
     return rows;
   }
@@ -856,6 +931,19 @@
     return (MOTOR_CAT[catKey] && !isPrivateCat(catKey)) ? '15% each and every loss' : '10% each and every loss';
   }
 
+  // Fleet-level discount (percentage). Applies only when there is more than one vehicle,
+  // to the aggregate own-damage premium AFTER NCD but BEFORE third-party premiums + NIC levies.
+  function motorVehicleCount(){
+    return [...document.querySelectorAll('[id^="mv-"]')].filter(function(el){ return /^mv-\d+$/.test(el.id); }).length;
+  }
+  function getFleetPct(){
+    var el = document.getElementById('motor-fleet-disc');
+    var v = el ? parseFloat(String(el.value||'').replace(/,/g,'')) : 0;
+    if (!isFinite(v) || v < 0) v = 0;
+    if (v > 100) v = 100;
+    return v;
+  }
+
   // Core premium engine.
   //  • Discount is applied to the OWN-DAMAGE premium only, BEFORE the third-party
   //    premium, extra-seat loading and statutory NIC levy are added.
@@ -931,7 +1019,7 @@
       const pct = parseFloat((r.odRate*100).toFixed(4));
       parts.push('Own damage: '+cur+' '+n(inp.val)+' × '+pct+'% = '+cur+' '+n(r.od));
     }
-    if (r.disc > 0) parts.push('Less discount'+(inp.discType==='PCT' ? (' '+dv+'%') : '')+': −'+cur+' '+n(r.disc));
+    if (r.disc > 0) parts.push('Less NCD'+(inp.discType==='PCT' ? (' '+dv+'%') : '')+': −'+cur+' '+n(r.disc));
     if (r.buyBack > 0) parts.push('Excess buy-back ('+parseFloat((r.buyBackRate*100).toFixed(2))+'%): +'+cur+' '+n(r.buyBack));
     parts.push('Third-party: '+cur+' '+n(r.tp));
     if (r.seatLoad > 0) parts.push('Extra seats: '+cur+' '+n(r.seatLoad));
@@ -1001,7 +1089,7 @@
       + '<input id="mv-seats-' + id + '" value="5" placeholder="5" inputmode="numeric" oninput="recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
       + '<div class="field" style="margin:0;"><label style="font-size:11px;">Value / Sum insured (' + getCurrency() + ')</label>'
       + '<input id="mv-val-' + id + '" placeholder="e.g. 85,000.00" oninput="fmtInput(this);recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
-      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Discount</label>'
+      + '<div class="field" style="margin:0;"><label style="font-size:11px;">No Claim Discount (NCD)</label>'
       + '<div style="display:flex;gap:4px;">'
       + '<input id="mv-disc-' + id + '" placeholder="0" oninput="fmtInput(this);recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;flex:1;min-width:0;box-sizing:border-box;font-family:Inter,sans-serif;" />'
       + '<select id="mv-disctype-' + id + '" onchange="recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 4px;border:1px solid var(--border);border-radius:7px;width:58px;flex-shrink:0;font-family:Inter,sans-serif;">'
@@ -1018,29 +1106,48 @@
       + '<div id="mv-bd-' + id + '" style="font-size:10px;color:#6b7d8f;margin-top:4px;line-height:1.5;"></div></div>'
       + '</div>';
     document.getElementById('motor-rows-container').appendChild(wrap);
-    recalcMotorRow(id);
+    recalcAllMotor();
   }
 
   function removeMotorRow(id) {
     var el = document.getElementById('mv-' + id);
-    if (el) { el.remove(); calcMotorTotals(); }
+    if (el) { el.remove(); recalcAllMotor(); }
   }
 
   function calcMotorTotals() {
-    var totalPrem = 0, totalVal = 0;
+    var cover = g('p-class');
+    var sumNet = 0, totalVal = 0, sumOdNet = 0, count = 0;
     document.querySelectorAll('[id^="mv-"]').forEach(function(el) {
       if (!/^mv-\d+$/.test(el.id)) return;
+      count++;
       var id = el.id.replace('mv-','');
-      var p = parseFloat(String(document.getElementById('mv-prem-'+id)?.value||'0').replace(/,/g,'')) || 0;
+      var calc = computeVehiclePremium(readMotorInputs(id), cover);   // per-vehicle, after NCD, before fleet
+      sumNet   += calc.net;      // = own-damage(after NCD) + buy-back + third-party + seats + NIC
+      sumOdNet += calc.odNet;    // own-damage after NCD — the fleet-discount base
       var v = parseFloat(String(document.getElementById('mv-val-'+id)?.value||'0').replace(/,/g,'')) || 0;
-      totalPrem += p; totalVal += v;
+      totalVal += v;
     });
+    // Fleet discount: percentage of the aggregate own-damage (after NCD), for 2+ vehicles only.
+    var fleetPct  = (count > 1) ? getFleetPct() : 0;
+    var fleetDisc = sumOdNet * (fleetPct / 100);
+    var grandTotal = sumNet - fleetDisc;
+
     var fmtN = function(n){ return n > 0 ? n.toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2}) : ''; };
+
+    // Show the fleet-discount control only for fleets (2+ vehicles).
+    var fw = document.getElementById('motor-fleet-wrap');
+    if (fw) fw.style.display = (count > 1) ? 'block' : 'none';
+    // Explain the fleet reduction so the total reconciles with the per-vehicle premiums.
+    var fn = document.getElementById('motor-fleet-note');
+    if (fn) fn.innerHTML = (fleetDisc > 0)
+      ? 'Fleet discount applied: −' + getCurrency() + ' ' + fmtN(fleetDisc) + '  (' + parseFloat(fleetPct.toFixed(2)) + '% of own-damage after NCD; deducted before third-party & NIC).'
+      : '';
+
     var tp = document.getElementById('motor-total-prem');
     var ts = document.getElementById('motor-total-sum');
-    if (tp) tp.value = fmtN(totalPrem);
+    if (tp) tp.value = fmtN(grandTotal);
     if (ts) ts.value = fmtN(totalVal);
-    document.getElementById('p-basic-prem').value = fmtN(totalPrem);
+    document.getElementById('p-basic-prem').value = fmtN(grandTotal);
     document.getElementById('p-sum').value         = fmtN(totalVal);
     calcGrossPrem();
   }
@@ -1534,9 +1641,13 @@
       const isMotor = isMotorClass(pClass);
       // Pre-compute motor totals needed for sheet logging and quote rendering
       const motorVehiclesForCalc = isMotor ? getMotorRows() : [];
-      const motorGrandPrem  = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.net:0),0);       // net (after discount)
-      const motorGrandGross = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.gross:0),0);     // before discount
-      const motorGrandDisc  = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.disc:0),0);      // total discount
+      const motorGrandGross = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.gross:0),0);   // before NCD & fleet
+      const motorGrandNCD   = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.disc:0),0);    // total NCD
+      const motorSumOdNet   = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.odNet:0),0);   // own-damage after NCD (fleet base)
+      const motorSumNet     = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.net:0),0);     // per-vehicle net, after NCD, before fleet
+      const motorFleetPct   = (motorVehiclesForCalc.length > 1) ? getFleetPct() : 0;
+      const motorGrandFleet = motorSumOdNet * (motorFleetPct / 100);                                // fleet discount amount
+      const motorGrandPrem  = motorSumNet - motorGrandFleet;                                        // final total payable
       const motorGrandVal   = motorVehiclesForCalc.reduce((s,r)=>s+(parseFloat(String(r.val||0).replace(/,/g,''))||0),0);
 
       const _now = new Date().toISOString();
@@ -1655,17 +1766,18 @@
 
       // ── Motor vehicle table HTML
 
-      // Discount % suffix for the schedule — shown only when every discounted vehicle uses the same %.
-      let motorDiscPctLabel = '';
+      // NCD % suffix for the schedule — shown only when every vehicle with an NCD uses the same %.
+      let motorNcdPctLabel = '';
       if (isMotor) {
         const discd = motorVehiclesForCalc.filter(function(r){ return r._calc && r._calc.disc > 0; });
         if (discd.length && discd.every(function(r){ return r.discType === 'PCT'; })) {
           const pcts = discd.map(function(r){ return parseFloat(String(r.discVal||'').replace(/,/g,'')) || 0; });
           if (pcts.every(function(p){ return p === pcts[0]; }) && pcts[0] > 0) {
-            motorDiscPctLabel = ' (' + parseFloat(pcts[0].toFixed(2)) + '%)';
+            motorNcdPctLabel = ' (' + parseFloat(pcts[0].toFixed(2)) + '%)';
           }
         }
       }
+      const motorFleetPctLabel = (motorGrandFleet > 0) ? ' (' + parseFloat(motorFleetPct.toFixed(2)) + '%)' : '';
 
       // Excess block for the schedule — Comprehensive only.
       let motorExcessHTML = '';
@@ -1699,12 +1811,18 @@
                 +'<td style="'+S.tdR+'">'+((r._calc&&r._calc.net) ? fmt(r._calc.net) : '—')+'</td>'
                 +'</tr>';
             }).join('')
-          +(motorGrandDisc > 0
+          +((motorGrandNCD > 0 || motorGrandFleet > 0)
             ? '<tr><td colspan="3" style="'+S.tdBold+'">Premium before discount</td>'
                 +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
                 +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandGross)+'</td></tr>'
-              +'<tr><td colspan="4" style="'+S.tdBold+'">Less: Discount'+motorDiscPctLabel+'</td>'
-                +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandDisc)+'</td></tr>'
+              +(motorGrandNCD > 0
+                ? '<tr><td colspan="4" style="'+S.tdBold+'">Less: No Claim Discount'+motorNcdPctLabel+'</td>'
+                    +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandNCD)+'</td></tr>'
+                : '')
+              +(motorGrandFleet > 0
+                ? '<tr><td colspan="4" style="'+S.tdBold+'">Less: Fleet Discount'+motorFleetPctLabel+'</td>'
+                    +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandFleet)+'</td></tr>'
+                : '')
             : (motorVehiclesForCalc.length > 1
                 ? '<tr><td colspan="3" style="'+S.tdBold+'">Sub-Total</td>'
                   +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
@@ -1976,13 +2094,9 @@
   // ── PREFILL ──────────────────────────────────────────────
   function runPrefill() {
     document.getElementById('p-date').value = new Date().toISOString().slice(0,10);
-    addBankField('bank', 'Bank',         'Ecobank Ghana, Head Office Branch');
-    addBankField('bank', 'Account Name', 'Vanguard Assurance Co. Ltd.');
-    addBankField('bank', 'Account No.',  '1441001519859');
-    addBankField('bank', 'Currency',     'Cedi');
-    addBankField('bank', 'Swift Code',   'ECOCGHAC');
-    addBankField('momo', 'Name',         'Vanguard Assurance');
-    addBankField('momo', 'Momo Number',  '0245093045');
+    var pb = document.getElementById('pay-branch');
+    if (pb) pb.value = 'Head Office';
+    applyBranch();   // populate Head Office bank + mobile-money details
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', runPrefill);
@@ -2062,6 +2176,8 @@
       sigName:    document.getElementById('sig-name')?.value     || '',
       sigRole:    document.getElementById('sig-role')?.value     || '',
       payIntro:   document.getElementById('pay-intro')?.value    || '',
+      payBranch:  document.getElementById('pay-branch')?.value   || 'Head Office',
+      motorFleetDisc: document.getElementById('motor-fleet-disc')?.value || '',
       tsiRows, bankRows, momoRows, xpRows, motorRows: motorRowsState
     };
   }
@@ -2097,6 +2213,8 @@
     set('sig-name',      state.sigName);
     set('sig-role',      state.sigRole);
     set('pay-intro',     state.payIntro);
+    set('pay-branch',    state.payBranch || 'Head Office');
+    set('motor-fleet-disc', state.motorFleetDisc);
 
     // Quote reference (trigger update)
     const pInvEl = document.getElementById('p-inv');
