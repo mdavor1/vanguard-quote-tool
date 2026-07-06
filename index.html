@@ -493,7 +493,7 @@
         <i class="ti ti-plus"></i> Add vehicle
       </button>
       <div class="field" id="motor-fleet-wrap" style="margin-top:6px;display:none;">
-        <label>Fleet discount (%) <span style="color:#8a96a3;font-weight:400;">— applies across all vehicles</span></label>
+        <label>Fleet discount (%) <span style="color:#8a96a3;font-weight:400;">— for fleet clients</span></label>
         <input id="motor-fleet-disc" placeholder="e.g. 5" inputmode="decimal" oninput="recalcAllMotor()"
           style="font-size:13px;" />
         <div id="motor-fleet-note" style="font-size:10.5px;color:#6b7d8f;margin-top:4px;line-height:1.5;"></div>
@@ -1127,16 +1127,17 @@
       var v = parseFloat(String(document.getElementById('mv-val-'+id)?.value||'0').replace(/,/g,'')) || 0;
       totalVal += v;
     });
-    // Fleet discount: percentage of the aggregate own-damage (after NCD), for 2+ vehicles only.
-    var fleetPct  = (count > 1) ? getFleetPct() : 0;
+    // Fleet discount: percentage of the aggregate own-damage (after NCD). Available for any
+    // vehicle count — a single vehicle can be added to an existing fleet client's cover.
+    var fleetPct  = getFleetPct();
     var fleetDisc = sumOdNet * (fleetPct / 100);
     var grandTotal = sumNet - fleetDisc;
 
     var fmtN = function(n){ return n > 0 ? n.toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2}) : ''; };
 
-    // Show the fleet-discount control only for fleets (2+ vehicles).
+    // Fleet-discount control is available whenever the motor section has a vehicle.
     var fw = document.getElementById('motor-fleet-wrap');
-    if (fw) fw.style.display = (count > 1) ? 'block' : 'none';
+    if (fw) fw.style.display = (count >= 1) ? 'block' : 'none';
     // Explain the fleet reduction so the total reconciles with the per-vehicle premiums.
     var fn = document.getElementById('motor-fleet-note');
     if (fn) fn.innerHTML = (fleetDisc > 0)
@@ -1645,7 +1646,7 @@
       const motorGrandNCD   = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.disc:0),0);    // total NCD
       const motorSumOdNet   = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.odNet:0),0);   // own-damage after NCD (fleet base)
       const motorSumNet     = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.net:0),0);     // per-vehicle net, after NCD, before fleet
-      const motorFleetPct   = (motorVehiclesForCalc.length > 1) ? getFleetPct() : 0;
+      const motorFleetPct   = getFleetPct();                                                       // available for any vehicle count
       const motorGrandFleet = motorSumOdNet * (motorFleetPct / 100);                                // fleet discount amount
       const motorGrandPrem  = motorSumNet - motorGrandFleet;                                        // final total payable
       const motorGrandVal   = motorVehiclesForCalc.reduce((s,r)=>s+(parseFloat(String(r.val||0).replace(/,/g,''))||0),0);
