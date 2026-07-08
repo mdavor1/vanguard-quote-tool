@@ -492,6 +492,12 @@
       <button class="add-btn" onclick="addMotorRow()" style="margin-bottom:4px;">
         <i class="ti ti-plus"></i> Add vehicle
       </button>
+      <div class="field" id="motor-fx-wrap" style="margin-top:6px;display:none;">
+        <label id="motor-fx-lbl">Exchange rate</label>
+        <input id="motor-fx-rate" placeholder="e.g. 12.50" inputmode="decimal" oninput="recalcAllMotor()"
+          style="font-size:13px;" />
+        <div id="motor-fx-note" style="font-size:10.5px;color:#6b7d8f;margin-top:4px;line-height:1.5;"></div>
+      </div>
       <div class="field" id="motor-fleet-wrap" style="margin-top:6px;display:none;">
         <label>Fleet discount (%) <span style="color:#8a96a3;font-weight:400;">— for fleet clients</span></label>
         <input id="motor-fleet-disc" placeholder="e.g. 5" inputmode="decimal" oninput="recalcAllMotor()"
@@ -944,26 +950,67 @@
     return v;
   }
 
+  // ── CURRENCY CONVERSION FOR THE MOTOR TARIFF ─────────────────────────────
+  // The 2026 NIC motor tariff is denominated in GHS. Own damage is value × rate, so it is
+  // already expressed in whatever currency the vehicle value was entered in. The third-party
+  // premium, the extra-seat loading and the statutory NIC levy are FIXED GHS amounts, so on a
+  // USD/EUR quote they must be converted — otherwise cedi figures get added to dollar figures.
+  // Rate is expressed as GHS per 1 unit of the quote currency (e.g. 1 USD = GHS 12.50).
+  function getFxRate(){
+    if (getCurrency() === 'GHS') return 1;
+    var el = document.getElementById('motor-fx-rate');
+    var v = el ? parseFloat(String(el.value||'').replace(/,/g,'')) : 0;
+    return (isFinite(v) && v > 0) ? v : 0;   // 0 → rate not supplied yet
+  }
+  function fxReady(){ return getFxRate() > 0; }
+  function _fxNum(n){ return (n||0).toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:4}); }
+
+  // Show the exchange-rate field only for non-GHS quotes, and explain what it converts.
+  function updateMotorFxUI(){
+    var cur   = getCurrency();
+    var isGhs = (cur === 'GHS');
+    // Keep the per-vehicle Value / Premium labels in step with the selected currency.
+    document.querySelectorAll('.mv-cur-lbl').forEach(function(el){ el.textContent = cur; });
+    var wrap  = document.getElementById('motor-fx-wrap');
+    var lbl   = document.getElementById('motor-fx-lbl');
+    var note  = document.getElementById('motor-fx-note');
+    if (wrap) wrap.style.display = isGhs ? 'none' : 'block';
+    if (lbl)  lbl.textContent = 'Exchange rate (GHS per 1 ' + cur + ')';
+    if (!note) return;
+    if (isGhs) { note.innerHTML = ''; return; }
+    var fx = getFxRate();
+    note.innerHTML = fx > 0
+      ? 'Third-party premium, extra-seat loading and the NIC levy are fixed GHS amounts — converted at 1 ' + cur + ' = GHS ' + _fxNum(fx) + '.'
+      : '<span style="color:#b42318;font-weight:600;">Enter the exchange rate.</span> The tariff\'s third-party premium and NIC levy are in GHS and cannot be converted to ' + cur + ' without it.';
+  }
+
   // Core premium engine.
   //  • Discount is applied to the OWN-DAMAGE premium only, BEFORE the third-party
   //    premium, extra-seat loading and statutory NIC levy are added.
   //  • Excess buy-back (Comprehensive only, when the client buys back the excess) adds
   //    a loading of 10% (private) or 15% (commercial) of the own-damage premium.
   function computeVehiclePremium(inp, cover) {
-    const z = { odRate:0, od:0, tp:0, seatLoad:0, buyBackRate:0, buyBack:0, discBase:0, disc:0, odNet:0, nic:0, net:0, gross:0 };
+    const z = { odRate:0, od:0, tp:0, seatLoad:0, buyBackRate:0, buyBack:0, discBase:0, disc:0, odNet:0, nic:0, net:0, gross:0, fx:0 };
     const cat = MOTOR_CAT[inp.cat];
     if (!cat) return z;
+    // The tariff's fixed components are GHS. Without a rate we cannot express them in the
+    // quote currency, so return zero rather than silently mixing cedis into a USD/EUR total.
+    const fx = getFxRate();
+    if (!fx) return z;
     const value = Number(inp.val) || 0;
     const seats = Number(inp.seats) || 0;
     const extraSeats = Math.max(0, seats - 5);
-    const seatLoad = extraSeats * cat.seat;
+    // Converted into the quote currency (fx = 1 for GHS, so this is a no-op on cedi quotes).
+    const tp       = cat.tp  / fx;
+    const seatLoad = (extraSeats * cat.seat) / fx;
+    const nic      = cat.nic / fx;
     const eng = inp.engine === 'EV' ? 'ev' : 'ice';
     const isComp = (cover === 'Motor — Comprehensive');
     const isTPFT = (cover === 'Motor — Third Party, Fire & Theft');
     let odRate = 0;
     if (isComp)      odRate = cat.comp[eng];
     else if (isTPFT) odRate = cat.tpft[eng];
-    const od = value * odRate;
+    const od = value * odRate;   // value is entered in the quote currency → od already correct
 
     // Excess buy-back loading — Comprehensive only, when the excess is bought back.
     let buyBackRate = 0, buyBack = 0;
@@ -982,11 +1029,11 @@
     const odNet = discBase - disc;
 
     return {
-      odRate: odRate, od: od, tp: cat.tp, seatLoad: seatLoad,
+      odRate: odRate, od: od, tp: tp, seatLoad: seatLoad,
       buyBackRate: buyBackRate, buyBack: buyBack,
-      discBase: discBase, disc: disc, odNet: odNet, nic: cat.nic,
-      net:   odNet + buyBack + cat.tp + seatLoad + cat.nic,   // amount client pays
-      gross: od    + buyBack + cat.tp + seatLoad + cat.nic    // before discount
+      discBase: discBase, disc: disc, odNet: odNet, nic: nic, fx: fx,
+      net:   odNet + buyBack + tp + seatLoad + nic,   // amount client pays
+      gross: od    + buyBack + tp + seatLoad + nic    // before discount
     };
   }
 
@@ -1051,6 +1098,7 @@
   }
 
   function recalcAllMotor() {
+    updateMotorFxUI();
     document.querySelectorAll('[id^="mv-"]').forEach(function(el){
       if (!/^mv-\d+$/.test(el.id)) return;
       recalcMotorRow(el.id.replace('mv-',''));
@@ -1087,7 +1135,7 @@
       + '</select></div>'
       + '<div class="field" style="margin:0;"><label style="font-size:11px;">Seating capacity</label>'
       + '<input id="mv-seats-' + id + '" value="5" placeholder="5" inputmode="numeric" oninput="recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
-      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Value / Sum insured (' + getCurrency() + ')</label>'
+      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Value / Sum insured (<span class="mv-cur-lbl">' + getCurrency() + '</span>)</label>'
       + '<input id="mv-val-' + id + '" placeholder="e.g. 85,000.00" oninput="fmtInput(this);recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
       + '<div class="field" style="margin:0;"><label style="font-size:11px;">No Claim Discount (NCD)</label>'
       + '<div style="display:flex;gap:4px;">'
@@ -1101,7 +1149,7 @@
       + '<option value="BUYBACK">No excess — client buys back (+10% private / +15% commercial)</option>'
       + '</select>'
       + '<input id="mv-excesstext-' + id + '" value="10% each and every loss" placeholder="e.g. 10% each and every loss" oninput="this.dataset.touched=\'1\';recalcMotorRow(' + id + ')" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;margin-top:4px;" /></div>'
-      + '<div class="field" style="margin:0;grid-column:1/-1;"><label style="font-size:11px;">Premium (' + getCurrency() + ') <span style="color:#8a96a3;font-weight:400;">— auto-calculated</span></label>'
+      + '<div class="field" style="margin:0;grid-column:1/-1;"><label style="font-size:11px;">Premium (<span class="mv-cur-lbl">' + getCurrency() + '</span>) <span style="color:#8a96a3;font-weight:400;">— auto-calculated</span></label>'
       + '<input id="mv-prem-' + id + '" readonly placeholder="Auto-calculated from tariff" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;background:#eef2f6;color:#1a2e4a;font-weight:600;cursor:default;" />'
       + '<div id="mv-bd-' + id + '" style="font-size:10px;color:#6b7d8f;margin-top:4px;line-height:1.5;"></div></div>'
       + '</div>';
@@ -1337,6 +1385,10 @@
     document.querySelectorAll('.tsi-cur-lbl').forEach(el => {
       el.textContent = el.textContent.replace(/GHS|USD|EUR/, cur);
     });
+    // Motor premiums depend on the currency (the tariff's GHS components get converted).
+    // Guarded: motor rows persist in the DOM behind a hidden section, and calcMotorTotals
+    // writes p-basic-prem / p-sum — which would clobber a non-motor quote.
+    if (isMotorClass(document.getElementById('p-class')?.value || '')) recalcAllMotor();
   }
 
   function calcVAT() {
@@ -1569,6 +1621,15 @@
         else document.getElementById('sig-role').focus();
         return;
       }
+      // A non-GHS motor quote needs an exchange rate: the tariff's third-party premium,
+      // seat loading and NIC levy are fixed GHS amounts that must be converted.
+      if (isMotorClass(g('p-class')) && !fxReady()) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
+        alert('\u26a0\ufe0f  Enter the exchange rate (GHS per 1 ' + getCurrency() + ') before generating this motor quote.\n\nThe tariff\u2019s third-party premium and NIC levy are fixed cedi amounts and must be converted.');
+        document.getElementById('motor-fx-rate')?.focus();
+        return;
+      }
       const coName   = g('co-name')   || 'Vanguard Assurance Company Limited';
       const coTel    = g('co-tel');
       const coWeb    = g('co-web');
@@ -1647,6 +1708,7 @@
       const motorSumOdNet   = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.odNet:0),0);   // own-damage after NCD (fleet base)
       const motorSumNet     = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.net:0),0);     // per-vehicle net, after NCD, before fleet
       const motorFleetPct   = getFleetPct();                                                       // available for any vehicle count
+      const motorFxRate     = isMotor ? getFxRate() : 1;                                           // GHS per 1 unit of quote currency
       const motorGrandFleet = motorSumOdNet * (motorFleetPct / 100);                                // fleet discount amount
       const motorGrandPrem  = motorSumNet - motorGrandFleet;                                        // final total payable
       const motorGrandVal   = motorVehiclesForCalc.reduce((s,r)=>s+(parseFloat(String(r.val||0).replace(/,/g,''))||0),0);
@@ -1832,7 +1894,9 @@
           +'<tr><td colspan="4" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td>'
           +'<td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPrem)+'</td></tr>'
           +'</tbody></table>'
-          +'<div style="font-size:9px;color:#8a96a3;margin-top:4px;line-height:1.45;">Premiums are computed on the 2026 NIC Motor Tariff and are inclusive of the statutory NIC contribution (GHS 79 per vehicle).</div>'
+          +'<div style="font-size:9px;color:#8a96a3;margin-top:4px;line-height:1.45;">Premiums are computed on the 2026 NIC Motor Tariff and are inclusive of the statutory NIC contribution (GHS 79 per vehicle)'
+            + (pCur !== 'GHS' ? '. Third-party premium, extra-seat loading and the NIC levy are fixed cedi amounts, converted at 1 ' + pCur + ' = GHS ' + _fxNum(motorFxRate) : '')
+            + '.</div>'
           + motorExcessHTML)
         : '';
 
@@ -2168,6 +2232,7 @@
       pInv:       document.getElementById('p-inv')?.value        || '',
       pDate:      document.getElementById('p-date')?.value       || '',
       pClass:     document.getElementById('p-class')?.value      || '',
+      pCurrency:  document.getElementById('p-currency')?.value   || 'GHS',
       pRisk:      document.getElementById('p-risk')?.value       || '',
       pSum:       document.getElementById('p-sum')?.value        || '',
       pBasicPrem: document.getElementById('p-basic-prem')?.value || '',
@@ -2179,6 +2244,7 @@
       payIntro:   document.getElementById('pay-intro')?.value    || '',
       payBranch:  document.getElementById('pay-branch')?.value   || 'Head Office',
       motorFleetDisc: document.getElementById('motor-fleet-disc')?.value || '',
+      motorFxRate:    document.getElementById('motor-fx-rate')?.value    || '',
       tsiRows, bankRows, momoRows, xpRows, motorRows: motorRowsState
     };
   }
@@ -2206,6 +2272,7 @@
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val||''; };
     set('p-date',        state.pDate);
     set('p-class',       state.pClass);
+    set('p-currency',    state.pCurrency || 'GHS');   // legacy quotes predate currency saving
     set('p-risk',        state.pRisk);
     set('p-sum',         state.pSum);
     set('p-basic-prem',  state.pBasicPrem);
@@ -2216,6 +2283,7 @@
     set('pay-intro',     state.payIntro);
     set('pay-branch',    state.payBranch || 'Head Office');
     set('motor-fleet-disc', state.motorFleetDisc);
+    set('motor-fx-rate',    state.motorFxRate);
 
     // Quote reference (trigger update)
     const pInvEl = document.getElementById('p-inv');
@@ -2271,6 +2339,10 @@
         sv('mv-prem-', r.prem);
       }
     });
+    // Refresh currency-dependent labels. For motor we call updateMotorFxUI directly rather than
+    // updateCurrencyLabels, because the latter recalculates every row — which would overwrite the
+    // saved premium deliberately preserved above for legacy (unrecognised-category) quotes.
+    if (isMotorClass(state.pClass || '')) updateMotorFxUI(); else updateCurrencyLabels();
     if ((state.motorRows||[]).length) calcMotorTotals();
 
     // Recalculate gross and VAT
