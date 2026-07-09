@@ -399,6 +399,7 @@
           <option>Contractors All Risk Insurance</option>
           <option>Erection All Risk Insurance</option>
           <option>Civil Engineering Completed Risk</option>
+          <option>Plant &amp; Machinery Insurance</option>
         </optgroup>
         <optgroup label="Bonds">
           <option>Bid Bond / Tender Security</option>
@@ -503,6 +504,13 @@
         <input id="motor-fleet-disc" placeholder="e.g. 5" inputmode="decimal" oninput="recalcAllMotor()"
           style="font-size:13px;" />
         <div id="motor-fleet-note" style="font-size:10.5px;color:#6b7d8f;margin-top:4px;line-height:1.5;"></div>
+      </div>
+      <div class="field" id="motor-dual-wrap" style="margin-top:6px;display:none;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
+          <input type="checkbox" id="motor-dual-excess" onchange="recalcAllMotor()" style="width:auto;margin:0;flex-shrink:0;" />
+          <span>Show both excess options on the quote <span style="color:#8a96a3;font-weight:400;">— excess applies vs. excess bought back</span></span>
+        </label>
+        <div id="motor-dual-note" style="font-size:10.5px;color:#6b7d8f;margin-top:4px;line-height:1.5;"></div>
       </div>
       <div class="field" style="margin-top:6px;">
         <label id="lbl-motor-total">Total fleet premium (GHS)</label>
@@ -937,6 +945,23 @@
     return (MOTOR_CAT[catKey] && !isPrivateCat(catKey)) ? '15% each and every loss' : '10% each and every loss';
   }
 
+  // ── DUAL-EXCESS QUOTES (Comprehensive only) ─────────────────────────────
+  // When enabled, a single quote presents BOTH scenarios side by side:
+  //   Option 1 — the policy excess applies;  Option 2 — the excess is bought back.
+  // The form's premium fields, totals and the Google Sheets log carry Option 2 (buy-back).
+  function isDualExcess(){
+    var cb = document.getElementById('motor-dual-excess');
+    return !!(cb && cb.checked && g('p-class') === 'Motor — Comprehensive');
+  }
+  function motorDualBreakdownText(rA, rB, inp){
+    if (!MOTOR_CAT[inp.cat]) return '';
+    var cur = getCurrency();
+    var n = function(x){ return (x||0).toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+    var pct = parseFloat(((rB.buyBackRate || buyBackRateFor(inp.cat))*100).toFixed(2));
+    return 'Option 1 — excess applies: <b>'+cur+' '+n(rA.net)+'</b>'
+      + ' &nbsp;·&nbsp; Option 2 — excess bought back (+'+pct+'% loading): <b>'+cur+' '+n(rB.net)+'</b>';
+  }
+
   // Fleet-level discount (percentage). Applies only when there is more than one vehicle,
   // to the aggregate own-damage premium AFTER NCD but BEFORE third-party premiums + NIC levies.
   function motorVehicleCount(){
@@ -1080,20 +1105,31 @@
     const cover = g('p-class');
     // Excess control is Comprehensive-only; the excess-wording box shows only when excess applies.
     const isComp = (cover === 'Motor — Comprehensive');
+    const dual   = isDualExcess();
     const exWrap = document.getElementById('mv-excess-wrap-'+id);
     const exSel  = document.getElementById('mv-excess-'+id);
     const exText = document.getElementById('mv-excesstext-'+id);
     if (exWrap) exWrap.style.display = isComp ? 'block' : 'none';
-    if (exText) exText.style.display = (isComp && exSel && exSel.value === 'APPLY') ? 'block' : 'none';
+    // Dual mode presents BOTH scenarios, so the per-vehicle APPLY/BUYBACK choice is hidden;
+    // the excess wording stays visible — it describes the "excess applies" option.
+    if (exSel)  exSel.style.display  = (isComp && !dual) ? '' : 'none';
+    if (exText) exText.style.display = (isComp && (dual || (exSel && exSel.value === 'APPLY'))) ? 'block' : 'none';
     const inp = readMotorInputs(id);
     // Keep the excess wording in step with the vehicle type (10% private / 15% commercial),
     // unless the user has typed their own wording.
     if (exText && exText.dataset.touched !== '1') exText.value = defaultExcessText(inp.cat);
-    const r = computeVehiclePremium(inp, cover);
     const premEl = document.getElementById('mv-prem-'+id);
-    if (premEl) premEl.value = r.net > 0 ? _fmtG(r.net) : '';
     const bd = document.getElementById('mv-bd-'+id);
-    if (bd) bd.innerHTML = MOTOR_CAT[inp.cat] ? motorBreakdownText(r, inp, cover) : '';
+    if (dual) {
+      const rA = computeVehiclePremium(Object.assign({}, inp, {excess:'APPLY'}),   cover);
+      const rB = computeVehiclePremium(Object.assign({}, inp, {excess:'BUYBACK'}), cover);
+      if (premEl) premEl.value = rB.net > 0 ? _fmtG(rB.net) : '';
+      if (bd) bd.innerHTML = MOTOR_CAT[inp.cat] ? motorDualBreakdownText(rA, rB, inp) : '';
+    } else {
+      const r = computeVehiclePremium(inp, cover);
+      if (premEl) premEl.value = r.net > 0 ? _fmtG(r.net) : '';
+      if (bd) bd.innerHTML = MOTOR_CAT[inp.cat] ? motorBreakdownText(r, inp, cover) : '';
+    }
     calcMotorTotals();
   }
 
@@ -1164,12 +1200,16 @@
 
   function calcMotorTotals() {
     var cover = g('p-class');
-    var sumNet = 0, totalVal = 0, sumOdNet = 0, count = 0;
+    var dual  = isDualExcess();
+    var sumNet = 0, totalVal = 0, sumOdNet = 0, count = 0, sumNetA = 0;
     document.querySelectorAll('[id^="mv-"]').forEach(function(el) {
       if (!/^mv-\d+$/.test(el.id)) return;
       count++;
       var id = el.id.replace('mv-','');
-      var calc = computeVehiclePremium(readMotorInputs(id), cover);   // per-vehicle, after NCD, before fleet
+      var inp = readMotorInputs(id);
+      // Dual mode: form totals (and the quote log) carry the buy-back scenario (Option 2).
+      var calc = computeVehiclePremium(dual ? Object.assign({}, inp, {excess:'BUYBACK'}) : inp, cover);   // per-vehicle, after NCD, before fleet
+      if (dual) sumNetA += computeVehiclePremium(Object.assign({}, inp, {excess:'APPLY'}), cover).net;
       sumNet   += calc.net;      // = own-damage(after NCD) + buy-back + third-party + seats + NIC
       sumOdNet += calc.odNet;    // own-damage after NCD — the fleet-discount base
       var v = parseFloat(String(document.getElementById('mv-val-'+id)?.value||'0').replace(/,/g,'')) || 0;
@@ -1180,6 +1220,7 @@
     var fleetPct  = getFleetPct();
     var fleetDisc = sumOdNet * (fleetPct / 100);
     var grandTotal = sumNet - fleetDisc;
+    var grandTotalA = sumNetA - fleetDisc;   // "excess applies" scenario (dual mode only)
 
     var fmtN = function(n){ return n > 0 ? n.toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2}) : ''; };
 
@@ -1190,6 +1231,19 @@
     var fn = document.getElementById('motor-fleet-note');
     if (fn) fn.innerHTML = (fleetDisc > 0)
       ? 'Fleet discount applied: −' + getCurrency() + ' ' + fmtN(fleetDisc) + '  (' + parseFloat(fleetPct.toFixed(2)) + '% of own-damage after NCD; deducted before third-party & NIC).'
+      : '';
+
+    // Dual-excess summary — shows both scenario totals so the officer sees them before generating.
+    var dn = document.getElementById('motor-dual-note');
+    if (dn) dn.innerHTML = (dual && count >= 1)
+      ? 'Option 1 — excess applies: <b>' + getCurrency() + ' ' + _fmtG(grandTotalA) + '</b>'
+        + ' &nbsp;·&nbsp; Option 2 — excess bought back: <b>' + getCurrency() + ' ' + _fmtG(grandTotal) + '</b>.'
+        + ' The totals below and the quote log carry Option 2.'
+        // Buy-back loading is a % of the own-damage premium — with no vehicle value there is
+        // nothing to load and both options come out equal. Flag it so it cannot pass unnoticed.
+        + (grandTotal <= grandTotalA
+            ? '<br><span style="color:#b42318;font-weight:600;">The two options are currently equal — enter each vehicle\'s value / sum insured so the buy-back loading (a % of the own-damage premium) can be applied.</span>'
+            : '')
       : '';
 
     var tp = document.getElementById('motor-total-prem');
@@ -1207,7 +1261,10 @@
       if (!/^mv-\d+$/.test(el.id)) return;
       var id = el.id.replace('mv-','');
       var inp = readMotorInputs(id);
-      var calc = computeVehiclePremium(inp, g('p-class'));
+      var dual = isDualExcess();
+      // Dual mode: _calc carries the buy-back scenario (Option 2 — logged), _calcA the excess-applies scenario (Option 1).
+      var calc  = computeVehiclePremium(dual ? Object.assign({}, inp, {excess:'BUYBACK'}) : inp, g('p-class'));
+      var calcA = dual ? computeVehiclePremium(Object.assign({}, inp, {excess:'APPLY'}), g('p-class')) : null;
       var catObj = MOTOR_CAT[inp.cat];
       rows.push({
         make:  document.getElementById('mv-make-'+id)?.value.trim()  || '',
@@ -1224,7 +1281,8 @@
         excess:     inp.excess,
         excessText: document.getElementById('mv-excesstext-'+id)?.value.trim() || '',
         prem:  document.getElementById('mv-prem-'+id)?.value.trim()  || '',   // net (formatted)
-        _calc: calc
+        _calc: calc,
+        _calcA: calcA
       });
     });
     return rows;
@@ -1322,7 +1380,7 @@
     'Boiler & Pressure Plant Insurance','Electronic Equipment Insurance',
     'LOP following Machinery Breakdown/BPI/EEQ','Thermal Risks and Machinery Loss of Profit',
     'Construction Policies','Contractors All Risk Insurance','Erection All Risk Insurance',
-    'Civil Engineering Completed Risk'
+    'Civil Engineering Completed Risk','Plant & Machinery Insurance'
   ];
 
   // ── EXTRA PREMIUM ROWS ─────────────────────────────────────────────────
@@ -1462,6 +1520,7 @@
     'Contractors All Risk Insurance':             'CA',
     'Erection All Risk Insurance':                'EA',
     'Civil Engineering Completed Risk':           'CE',
+    'Plant & Machinery Insurance':                'PM',
     // Bonds
     'Bid Bond / Tender Security':                 'BB',
     'Performance Bond':                           'PB',
@@ -1506,6 +1565,9 @@
     const pSumField   = document.getElementById('p-sum')?.closest('.field');
     const pBasicField = document.getElementById('p-basic-prem')?.closest('.field');
     if (motorSec)    motorSec.style.display    = isMotor ? 'block' : 'none';
+    // Dual-excess option only exists for Comprehensive cover (excess/buy-back is Comprehensive-only).
+    const dualWrap = document.getElementById('motor-dual-wrap');
+    if (dualWrap) dualWrap.style.display = (pClass === 'Motor — Comprehensive') ? 'block' : 'none';
     if (tsiSec)      tsiSec.style.display      = isMotor ? 'none'  : 'block';
     if (pRiskField)  pRiskField.style.display  = isMotor ? 'none'  : 'block';
     if (pSumField)   pSumField.style.display   = isMotor ? 'none'  : 'block';
@@ -1712,6 +1774,11 @@
       const motorGrandFleet = motorSumOdNet * (motorFleetPct / 100);                                // fleet discount amount
       const motorGrandPrem  = motorSumNet - motorGrandFleet;                                        // final total payable
       const motorGrandVal   = motorVehiclesForCalc.reduce((s,r)=>s+(parseFloat(String(r.val||0).replace(/,/g,''))||0),0);
+      // Dual-excess quotes: totals for the "excess applies" scenario (Option 1).
+      const dualExcess       = isMotor && isDualExcess();
+      const motorGrandGrossA = dualExcess ? motorVehiclesForCalc.reduce((s,r)=>s+(r._calcA?r._calcA.gross:0),0) : 0;
+      const motorSumNetA     = dualExcess ? motorVehiclesForCalc.reduce((s,r)=>s+(r._calcA?r._calcA.net:0),0)   : 0;
+      const motorGrandPremA  = motorSumNetA - motorGrandFleet;
 
       const _now = new Date().toISOString();
       logQuoteToSheet({
@@ -1756,6 +1823,8 @@
       const effectiveGross = isMotor ? motorGrandPrem : grossPrem;
       const vatAmt         = isVatable ? effectiveGross * VAT_RATE : 0;
       const totalPrem      = effectiveGross + vatAmt + extraTotal;
+      // Option 1 total for dual-excess quotes (motor is VAT-exempt; extra items apply to both options).
+      const totalPremA     = dualExcess ? motorGrandPremA + vatAmt + extraTotal : 0;
 
       // rawPrem kept for compatibility
       const rawPrem    = effectiveGross;
@@ -1848,56 +1917,119 @@
         const multi = motorVehiclesForCalc.length > 1;
         const lines = motorVehiclesForCalc.map(function(r){
           const who = multi ? (((r.reg && r.reg!=='—') ? r.reg : ([r.make,r.model].filter(Boolean).join(' ') || 'Vehicle')) + ': ') : '';
+          const wording = (r.excessText && r.excessText.trim()) ? r.excessText.trim() : '10% each and every loss';
+          if (dualExcess) return who + 'Option 1 — ' + wording + ' &nbsp;·&nbsp; Option 2 — Nil (excess bought back)';
           if (r.excess === 'BUYBACK') return who + 'Nil — excess bought back';
-          return who + ((r.excessText && r.excessText.trim()) ? r.excessText.trim() : '10% each and every loss');
+          return who + wording;
         });
         motorExcessHTML = '<div style="font-size:'+fsS+';margin-top:6px;line-height:1.5;color:#1a2e4a;"><strong>Excess:</strong> '
           + (multi ? '<br>' + lines.join('<br>') : lines[0]) + '</div>';
       }
 
+      // Intro line explaining the two options (dual-excess quotes only).
+      const motorDualIntroHTML = dualExcess
+        ? '<div style="font-size:'+fsS+';padding:6px 14px 4px;line-height:1.55;color:#1a2e4a;">'
+          +'This quotation presents two options: <strong>Option 1</strong> — the policy excess applies in the event of a claim; '
+          +'<strong>Option 2</strong> — the excess is bought back for an additional loading, so no excess is payable on claims. '
+          +'Premiums for each option are shown side by side.</div>'
+        : '';
+
       const motorSubjectHTML = isMotor
-        ? ('<table style="'+S.tbl+'">'
-          +'<thead><tr>'
-          +'<th style="'+S.thNav+';text-align:left;width:26%;">Vehicle</th>'
-          +'<th style="'+S.thNavR+';width:14%;">Reg. No.</th>'
-          +'<th style="'+S.thNavR+';width:22%;">Category</th>'
-          +'<th style="'+S.thNavR+';width:19%;">Value ('+pCur+')</th>'
-          +'<th style="'+S.thNavR+';width:19%;">Premium ('+pCur+')</th>'
-          +'</tr></thead><tbody>'
-          + motorVehiclesForCalc.map(function(r,i){
-              const desc = [r.year, r.make, r.model].filter(Boolean).join(' ') || ('Vehicle '+(i+1));
-              return '<tr>'
-                +'<td style="'+S.td+'">'+desc+'</td>'
-                +'<td style="'+S.tdC+'">'+(r.reg  || '—')+'</td>'
-                +'<td style="'+S.tdC+'">'+(r.catLabel || '—')+'</td>'
-                +'<td style="'+S.tdR+'">'+(r.val  ? fmt(parseFloat(String(r.val).replace(/,/g,'')))  : '—')+'</td>'
-                +'<td style="'+S.tdR+'">'+((r._calc&&r._calc.net) ? fmt(r._calc.net) : '—')+'</td>'
-                +'</tr>';
-            }).join('')
-          +((motorGrandNCD > 0 || motorGrandFleet > 0)
-            ? '<tr><td colspan="3" style="'+S.tdBold+'">Premium before discount</td>'
-                +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
-                +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandGross)+'</td></tr>'
-              +(motorGrandNCD > 0
-                ? '<tr><td colspan="4" style="'+S.tdBold+'">Less: No Claim Discount'+motorNcdPctLabel+'</td>'
-                    +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandNCD)+'</td></tr>'
-                : '')
-              +(motorGrandFleet > 0
-                ? '<tr><td colspan="4" style="'+S.tdBold+'">Less: Fleet Discount'+motorFleetPctLabel+'</td>'
-                    +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandFleet)+'</td></tr>'
-                : '')
-            : (motorVehiclesForCalc.length > 1
-                ? '<tr><td colspan="3" style="'+S.tdBold+'">Sub-Total</td>'
+        ? (dualExcess
+          // ── Dual-excess: one schedule, both scenarios side by side ──
+          ? (motorDualIntroHTML
+            +'<table style="'+S.tbl+'">'
+            +'<thead><tr>'
+            +'<th style="'+S.thNav+';text-align:left;width:21%;">Vehicle</th>'
+            +'<th style="'+S.thNavR+';width:11%;">Reg. No.</th>'
+            +'<th style="'+S.thNavR+';width:18%;">Category</th>'
+            +'<th style="'+S.thNavR+';width:16%;">Value ('+pCur+')</th>'
+            +'<th style="'+S.thNavR+';width:17%;">Option 1 — Excess Applies ('+pCur+')</th>'
+            +'<th style="'+S.thNavR+';width:17%;">Option 2 — Excess Bought Back ('+pCur+')</th>'
+            +'</tr></thead><tbody>'
+            + motorVehiclesForCalc.map(function(r,i){
+                const desc = [r.year, r.make, r.model].filter(Boolean).join(' ') || ('Vehicle '+(i+1));
+                return '<tr>'
+                  +'<td style="'+S.td+'">'+desc+'</td>'
+                  +'<td style="'+S.tdC+'">'+(r.reg  || '—')+'</td>'
+                  +'<td style="'+S.tdC+'">'+(r.catLabel || '—')+'</td>'
+                  +'<td style="'+S.tdR+'">'+(r.val  ? fmt(parseFloat(String(r.val).replace(/,/g,'')))  : '—')+'</td>'
+                  +'<td style="'+S.tdR+'">'+((r._calcA&&r._calcA.net) ? fmt(r._calcA.net) : '—')+'</td>'
+                  +'<td style="'+S.tdR+'">'+((r._calc&&r._calc.net)   ? fmt(r._calc.net)  : '—')+'</td>'
+                  +'</tr>';
+              }).join('')
+            +((motorGrandNCD > 0 || motorGrandFleet > 0)
+              ? '<tr><td colspan="3" style="'+S.tdBold+'">Premium before discount</td>'
                   +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
-                  +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandPrem)+'</td></tr>'
-                : ''))
-          +'<tr><td colspan="4" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td>'
-          +'<td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPrem)+'</td></tr>'
-          +'</tbody></table>'
-          +'<div style="font-size:9px;color:#8a96a3;margin-top:4px;line-height:1.45;">Premiums are computed on the 2026 NIC Motor Tariff and are inclusive of the statutory NIC contribution (GHS 79 per vehicle)'
+                  +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandGrossA)+'</td>'
+                  +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandGross)+'</td></tr>'
+                +(motorGrandNCD > 0
+                  ? '<tr><td colspan="4" style="'+S.tdBold+'">Less: No Claim Discount'+motorNcdPctLabel+'</td>'
+                      +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandNCD)+'</td>'
+                      +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandNCD)+'</td></tr>'
+                  : '')
+                +(motorGrandFleet > 0
+                  ? '<tr><td colspan="4" style="'+S.tdBold+'">Less: Fleet Discount'+motorFleetPctLabel+'</td>'
+                      +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandFleet)+'</td>'
+                      +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandFleet)+'</td></tr>'
+                  : '')
+              : (motorVehiclesForCalc.length > 1
+                  ? '<tr><td colspan="3" style="'+S.tdBold+'">Sub-Total</td>'
+                    +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
+                    +'<td style="'+S.tdBoldR+'">'+fmt(motorSumNetA)+'</td>'
+                    +'<td style="'+S.tdBoldR+'">'+fmt(motorSumNet)+'</td></tr>'
+                  : ''))
+            +'<tr><td colspan="4" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td>'
+            +'<td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPremA)+'</td>'
+            +'<td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPrem)+'</td></tr>'
+            +'</tbody></table>'
+            +'<div style="font-size:9px;color:#8a96a3;margin-top:4px;line-height:1.45;">Premiums are computed on the 2026 NIC Motor Tariff and are inclusive of the statutory NIC contribution (GHS 79 per vehicle)'
             + (pCur !== 'GHS' ? '. Third-party premium, extra-seat loading and the NIC levy are fixed cedi amounts, converted at 1 ' + pCur + ' = GHS ' + _fxNum(motorFxRate) : '')
             + '.</div>'
-          + motorExcessHTML)
+            + motorExcessHTML)
+          // ── Single-scenario schedule (unchanged behaviour) ──
+          : ('<table style="'+S.tbl+'">'
+            +'<thead><tr>'
+            +'<th style="'+S.thNav+';text-align:left;width:26%;">Vehicle</th>'
+            +'<th style="'+S.thNavR+';width:14%;">Reg. No.</th>'
+            +'<th style="'+S.thNavR+';width:22%;">Category</th>'
+            +'<th style="'+S.thNavR+';width:19%;">Value ('+pCur+')</th>'
+            +'<th style="'+S.thNavR+';width:19%;">Premium ('+pCur+')</th>'
+            +'</tr></thead><tbody>'
+            + motorVehiclesForCalc.map(function(r,i){
+                const desc = [r.year, r.make, r.model].filter(Boolean).join(' ') || ('Vehicle '+(i+1));
+                return '<tr>'
+                  +'<td style="'+S.td+'">'+desc+'</td>'
+                  +'<td style="'+S.tdC+'">'+(r.reg  || '—')+'</td>'
+                  +'<td style="'+S.tdC+'">'+(r.catLabel || '—')+'</td>'
+                  +'<td style="'+S.tdR+'">'+(r.val  ? fmt(parseFloat(String(r.val).replace(/,/g,'')))  : '—')+'</td>'
+                  +'<td style="'+S.tdR+'">'+((r._calc&&r._calc.net) ? fmt(r._calc.net) : '—')+'</td>'
+                  +'</tr>';
+              }).join('')
+            +((motorGrandNCD > 0 || motorGrandFleet > 0)
+              ? '<tr><td colspan="3" style="'+S.tdBold+'">Premium before discount</td>'
+                  +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
+                  +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandGross)+'</td></tr>'
+                +(motorGrandNCD > 0
+                  ? '<tr><td colspan="4" style="'+S.tdBold+'">Less: No Claim Discount'+motorNcdPctLabel+'</td>'
+                      +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandNCD)+'</td></tr>'
+                  : '')
+                +(motorGrandFleet > 0
+                  ? '<tr><td colspan="4" style="'+S.tdBold+'">Less: Fleet Discount'+motorFleetPctLabel+'</td>'
+                      +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandFleet)+'</td></tr>'
+                  : '')
+              : (motorVehiclesForCalc.length > 1
+                  ? '<tr><td colspan="3" style="'+S.tdBold+'">Sub-Total</td>'
+                    +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
+                    +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandPrem)+'</td></tr>'
+                  : ''))
+            +'<tr><td colspan="4" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td>'
+            +'<td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPrem)+'</td></tr>'
+            +'</tbody></table>'
+            +'<div style="font-size:9px;color:#8a96a3;margin-top:4px;line-height:1.45;">Premiums are computed on the 2026 NIC Motor Tariff and are inclusive of the statutory NIC contribution (GHS 79 per vehicle)'
+            + (pCur !== 'GHS' ? '. Third-party premium, extra-seat loading and the NIC levy are fixed cedi amounts, converted at 1 ' + pCur + ' = GHS ' + _fxNum(motorFxRate) : '')
+            + '.</div>'
+            + motorExcessHTML))
         : '';
 
       // ── Fixed layout
@@ -2245,6 +2377,7 @@
       payBranch:  document.getElementById('pay-branch')?.value   || 'Head Office',
       motorFleetDisc: document.getElementById('motor-fleet-disc')?.value || '',
       motorFxRate:    document.getElementById('motor-fx-rate')?.value    || '',
+      motorDualExcess: !!document.getElementById('motor-dual-excess')?.checked,
       tsiRows, bankRows, momoRows, xpRows, motorRows: motorRowsState
     };
   }
@@ -2284,6 +2417,9 @@
     set('pay-branch',    state.payBranch || 'Head Office');
     set('motor-fleet-disc', state.motorFleetDisc);
     set('motor-fx-rate',    state.motorFxRate);
+    // Restore the dual-excess toggle before motor rows are rebuilt (recalc reads it).
+    const _dualCb = document.getElementById('motor-dual-excess');
+    if (_dualCb) _dualCb.checked = !!state.motorDualExcess;
 
     // Quote reference (trigger update)
     const pInvEl = document.getElementById('p-inv');
