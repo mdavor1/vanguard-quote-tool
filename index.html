@@ -1898,18 +1898,32 @@
 
       // ── Motor vehicle table HTML
 
-      // NCD % suffix for the schedule — shown only when every vehicle with an NCD uses the same %.
-      let motorNcdPctLabel = '';
-      if (isMotor) {
-        const discd = motorVehiclesForCalc.filter(function(r){ return r._calc && r._calc.disc > 0; });
-        if (discd.length && discd.every(function(r){ return r.discType === 'PCT'; })) {
-          const pcts = discd.map(function(r){ return parseFloat(String(r.discVal||'').replace(/,/g,'')) || 0; });
-          if (pcts.every(function(p){ return p === pcts[0]; }) && pcts[0] > 0) {
-            motorNcdPctLabel = ' (' + parseFloat(pcts[0].toFixed(2)) + '%)';
+      // Discount(s) line for the schedule — percentages only, no amounts.
+      // e.g. "Discount(s): 20% No Claim Discount (NCD) and 10% Fleet Discount"
+      let motorDiscountHTML = '';
+      if (isMotor && (motorGrandNCD > 0 || motorGrandFleet > 0)) {
+        const discParts = [];
+        if (motorGrandNCD > 0) {
+          const discd = motorVehiclesForCalc.filter(function(r){ return r._calc && r._calc.disc > 0; });
+          const pcts  = discd.map(function(r){ return parseFloat(String(r.discVal||'').replace(/,/g,'')) || 0; });
+          const uniformPct = discd.every(function(r){ return r.discType === 'PCT'; })
+            && pcts.every(function(pv){ return pv === pcts[0]; }) && pcts[0] > 0;
+          if (uniformPct) {
+            discParts.push(parseFloat(pcts[0].toFixed(2)) + '% No Claim Discount (NCD)');
+          } else {
+            // Mixed rates or amount-based NCDs — list each vehicle's effective % of own-damage.
+            const perVeh = discd.map(function(r){
+              const who = (r.reg && r.reg!=='—') ? r.reg : ([r.make,r.model].filter(Boolean).join(' ') || 'Vehicle');
+              const effPct = (r._calc.discBase > 0) ? (r._calc.disc / r._calc.discBase) * 100 : 0;
+              return who + ' — ' + parseFloat(effPct.toFixed(1)) + '%';
+            });
+            discParts.push('No Claim Discount (NCD): ' + perVeh.join('; '));
           }
         }
+        if (motorGrandFleet > 0) discParts.push(parseFloat(motorFleetPct.toFixed(2)) + '% Fleet Discount');
+        motorDiscountHTML = '<div style="font-size:'+fsS+';margin-top:6px;line-height:1.5;color:#1a2e4a;"><strong>Discount(s):</strong> '
+          + discParts.join(' and ') + '</div>';
       }
-      const motorFleetPctLabel = (motorGrandFleet > 0) ? ' (' + parseFloat(motorFleetPct.toFixed(2)) + '%)' : '';
 
       // Excess block for the schedule — Comprehensive only.
       let motorExcessHTML = '';
@@ -1958,27 +1972,12 @@
                   +'<td style="'+S.tdR+'">'+((r._calc&&r._calc.net)   ? fmt(r._calc.net)  : '—')+'</td>'
                   +'</tr>';
               }).join('')
-            +((motorGrandNCD > 0 || motorGrandFleet > 0)
-              ? '<tr><td colspan="3" style="'+S.tdBold+'">Premium before discount</td>'
-                  +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
-                  +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandGrossA)+'</td>'
-                  +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandGross)+'</td></tr>'
-                +(motorGrandNCD > 0
-                  ? '<tr><td colspan="4" style="'+S.tdBold+'">Less: No Claim Discount'+motorNcdPctLabel+'</td>'
-                      +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandNCD)+'</td>'
-                      +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandNCD)+'</td></tr>'
-                  : '')
-                +(motorGrandFleet > 0
-                  ? '<tr><td colspan="4" style="'+S.tdBold+'">Less: Fleet Discount'+motorFleetPctLabel+'</td>'
-                      +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandFleet)+'</td>'
-                      +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandFleet)+'</td></tr>'
-                  : '')
-              : (motorVehiclesForCalc.length > 1
-                  ? '<tr><td colspan="3" style="'+S.tdBold+'">Sub-Total</td>'
-                    +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
-                    +'<td style="'+S.tdBoldR+'">'+fmt(motorSumNetA)+'</td>'
-                    +'<td style="'+S.tdBoldR+'">'+fmt(motorSumNet)+'</td></tr>'
-                  : ''))
+            +(motorVehiclesForCalc.length > 1
+              ? '<tr><td colspan="3" style="'+S.tdBold+'">Sub-Total</td>'
+                +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
+                +'<td style="'+S.tdBoldR+'">'+fmt(motorSumNetA)+'</td>'
+                +'<td style="'+S.tdBoldR+'">'+fmt(motorSumNet)+'</td></tr>'
+              : '')
             +'<tr><td colspan="4" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td>'
             +'<td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPremA)+'</td>'
             +'<td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPrem)+'</td></tr>'
@@ -1986,6 +1985,7 @@
             +'<div style="font-size:9px;color:#8a96a3;margin-top:4px;line-height:1.45;">Premiums are computed on the 2026 NIC Motor Tariff and are inclusive of the statutory NIC contribution (GHS 79 per vehicle)'
             + (pCur !== 'GHS' ? '. Third-party premium, extra-seat loading and the NIC levy are fixed cedi amounts, converted at 1 ' + pCur + ' = GHS ' + _fxNum(motorFxRate) : '')
             + '.</div>'
+            + motorDiscountHTML
             + motorExcessHTML)
           // ── Single-scenario schedule (unchanged behaviour) ──
           : ('<table style="'+S.tbl+'">'
@@ -2006,29 +2006,18 @@
                   +'<td style="'+S.tdR+'">'+((r._calc&&r._calc.net) ? fmt(r._calc.net) : '—')+'</td>'
                   +'</tr>';
               }).join('')
-            +((motorGrandNCD > 0 || motorGrandFleet > 0)
-              ? '<tr><td colspan="3" style="'+S.tdBold+'">Premium before discount</td>'
-                  +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
-                  +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandGross)+'</td></tr>'
-                +(motorGrandNCD > 0
-                  ? '<tr><td colspan="4" style="'+S.tdBold+'">Less: No Claim Discount'+motorNcdPctLabel+'</td>'
-                      +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandNCD)+'</td></tr>'
-                  : '')
-                +(motorGrandFleet > 0
-                  ? '<tr><td colspan="4" style="'+S.tdBold+'">Less: Fleet Discount'+motorFleetPctLabel+'</td>'
-                      +'<td style="'+S.tdBoldR+'">−'+fmt(motorGrandFleet)+'</td></tr>'
-                  : '')
-              : (motorVehiclesForCalc.length > 1
-                  ? '<tr><td colspan="3" style="'+S.tdBold+'">Sub-Total</td>'
-                    +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
-                    +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandPrem)+'</td></tr>'
-                  : ''))
+            +(motorVehiclesForCalc.length > 1
+              ? '<tr><td colspan="3" style="'+S.tdBold+'">Sub-Total</td>'
+                +'<td style="'+S.tdBoldR+'">'+fmt(motorGrandVal)+'</td>'
+                +'<td style="'+S.tdBoldR+'">'+fmt(motorSumNet)+'</td></tr>'
+              : '')
             +'<tr><td colspan="4" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td>'
             +'<td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPrem)+'</td></tr>'
             +'</tbody></table>'
             +'<div style="font-size:9px;color:#8a96a3;margin-top:4px;line-height:1.45;">Premiums are computed on the 2026 NIC Motor Tariff and are inclusive of the statutory NIC contribution (GHS 79 per vehicle)'
             + (pCur !== 'GHS' ? '. Third-party premium, extra-seat loading and the NIC levy are fixed cedi amounts, converted at 1 ' + pCur + ' = GHS ' + _fxNum(motorFxRate) : '')
             + '.</div>'
+            + motorDiscountHTML
             + motorExcessHTML))
         : '';
 
