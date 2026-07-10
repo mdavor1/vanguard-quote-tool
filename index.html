@@ -1656,6 +1656,10 @@
 
   function resetEditFlag() { _editingExistingQuote = false; }
 
+  // Quote references generated or loaded on this screen in this session. Regenerating one of
+  // these is the same person editing their own quote — never a duplicate.
+  const _sessionRefs = new Set();
+
   function updateQuoteRef() {
     const pClass = g('p-class');
     const ref = genQuoteRef(pClass);
@@ -1728,8 +1732,10 @@
       const logoSrc   = LOGO_DATA_URL;
       const stampSrc  = STAMP_DATA_URL;
 
-      // ── Duplicate check (skipped for motor — high volume makes sum-insured matching unreliable)
-      if (pClass && pSum && !isMotorClass(pClass)) {
+      // ── Duplicate check (skipped for motor — high volume makes sum-insured matching unreliable).
+      // Also skipped when regenerating a quote created or loaded on this screen (same person
+      // editing their own quote — in-session amendment or a My Quotes "Load & Edit").
+      if (pClass && pSum && !isMotorClass(pClass) && !_sessionRefs.has(pInv)) {
         const recent = await fetchRecentQuotes();
         const sevenDaysAgo = Date.now() - (7*24*60*60*1000);
         const normSum = parseFloat(String(pSum).replace(/,/g,''));
@@ -1746,6 +1752,8 @@
           const qSum = parseFloat(String(q.sumInsured).replace(/,/g,''));
           // Records logged before currency tracking default to GHS
           const qCur = (q.currency && q.currency.trim()) ? q.currency.trim().toUpperCase() : 'GHS';
+          // A record carrying the same quote reference IS this quote — an edit, not a duplicate.
+          if (String(q.quoteRef||'').trim() === String(pInv).trim()) return false;
           return q.policyClass.trim().toLowerCase() === pClass.trim().toLowerCase()
             && !isNaN(qSum) && !isNaN(normSum) && Math.abs(qSum-normSum) < 1
             && qCur === curNow.toUpperCase()
@@ -1800,6 +1808,7 @@
       }).catch(e => console.warn('Sheet log non-fatal:', e));
       // After saving, mark as existing (subsequent regenerations = updates)
       _editingExistingQuote = true;
+      _sessionRefs.add(pInv);
 
       btn.disabled = false;
       btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
@@ -2410,12 +2419,15 @@
     const _dualCb = document.getElementById('motor-dual-excess');
     if (_dualCb) _dualCb.checked = !!state.motorDualExcess;
 
-    // Quote reference (trigger update)
-    const pInvEl = document.getElementById('p-inv');
-    if (pInvEl) pInvEl.value = state.pInv;
-
     // Trigger class-change side effects (quote ref display, WC note)
     onClassChange();
+
+    // Restore the saved quote reference AFTER onClassChange — updateQuoteRef inside it
+    // generates a fresh ref, which would orphan this quote from its logged record and
+    // make any amendment look like a duplicate.
+    const pInvEl = document.getElementById('p-inv');
+    if (pInvEl && state.pInv) pInvEl.value = state.pInv;
+    if (state.pInv) _sessionRefs.add(state.pInv);
 
     // Clear and restore TSI rows
     document.getElementById('tsi-rows-container').innerHTML = '';
