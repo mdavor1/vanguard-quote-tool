@@ -417,11 +417,15 @@
           <option>Marine Certificate Policies</option>
           <option>Stevedores Legal Liability</option>
         </optgroup>
+        <optgroup label="Foreign Travel">
+          <option>Vanguard Safe Travel Policy</option>
+          <option>Mapfre Travel Policy</option>
+        </optgroup>
       </select>
     </div>
     <div class="g2">
-      <div class="field"><label>Policy start date</label><input id="p-start" type="date" /></div>
-      <div class="field"><label>Policy end date</label><input id="p-end" type="date" /></div>
+      <div class="field"><label>Policy start date</label><input id="p-start" type="date" onchange="onPolicyDatesChange()" /></div>
+      <div class="field"><label>Policy end date</label><input id="p-end" type="date" onchange="onPolicyDatesChange()" /></div>
     </div>
     <div class="g2">
       <div class="field"><label>Payment due</label>
@@ -523,6 +527,49 @@
         <input id="motor-total-sum" type="text" readonly
           style="background:#f4f6f8;color:#1a2e4a;font-weight:600;cursor:default;"
           placeholder="Auto-calculated from vehicles below" />
+      </div>
+    </div>
+
+    <!-- ── FOREIGN TRAVEL SECTION (shown only for travel classes) ── -->
+    <div id="travel-section" style="display:none;">
+      <div class="sec-hdr"><i class="ti ti-plane-departure"></i> Travel cover</div>
+
+      <div id="travel-underwriter-note" style="display:none;font-size:11px;color:#2E75B6;background:#eef4fb;border:1px solid #cfe0f2;border-radius:8px;padding:7px 10px;margin-bottom:8px;line-height:1.5;"></div>
+
+      <div class="g2">
+        <div class="field"><label>Destination</label>
+          <input id="tv-destination" placeholder="e.g. United Kingdom, Schengen States, Dubai" oninput="recalcAllTravel()" />
+        </div>
+        <div class="field"><label>Trip basis</label>
+          <select id="tv-trip" onchange="recalcAllTravel()">
+            <option value="SINGLE">Single trip</option>
+            <option value="ANNUAL">Annual multi-trip</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Trip duration</label>
+        <input id="tv-days" readonly placeholder="Set policy start &amp; end dates"
+          style="background:#f4f6f8;color:#1a2e4a;font-weight:600;cursor:default;" />
+      </div>
+
+      <div id="travel-rows-container"></div>
+      <button class="add-btn" onclick="addTravellerRow()" style="margin-bottom:4px;">
+        <i class="ti ti-plus"></i> Add traveller
+      </button>
+
+      <div class="field" style="margin-top:6px;">
+        <label>Group / family discount (%) <span style="color:#8a96a3;font-weight:400;">— applied to the total travel premium</span></label>
+        <input id="tv-group-disc" placeholder="e.g. 10" inputmode="decimal" oninput="recalcAllTravel()" style="font-size:13px;" />
+        <div id="tv-group-note" style="font-size:10.5px;color:#6b7d8f;margin-top:4px;line-height:1.5;"></div>
+      </div>
+
+      <div class="field" style="margin-top:6px;">
+        <label id="lbl-tv-total">Total travel premium (GHS)</label>
+        <input id="tv-total-prem" type="text" readonly
+          style="background:#f4f6f8;color:#1a2e4a;font-weight:600;cursor:default;"
+          placeholder="Totalled from the travellers above" />
       </div>
     </div>
 
@@ -1288,6 +1335,224 @@
     return rows;
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // FOREIGN TRAVEL POLICIES
+  // ═══════════════════════════════════════════════════════════════════════
+  // Two products are quoted here:
+  //   1. Vanguard Safe Travel Policy  — underwritten by Vanguard Assurance
+  //   2. Mapfre Travel Policy         — underwritten by MAPFRE, distributed by Vanguard
+  //
+  // Premiums are entered by the officer per traveller, not rated by the tool. The section
+  // captures the destination, trip details and travellers, totals the entered premiums and
+  // applies any group discount.
+  // ═══════════════════════════════════════════════════════════════════════
+  const TRAVEL_CLASSES = [
+    'Vanguard Safe Travel Policy',
+    'Mapfre Travel Policy'
+  ];
+  function isTravelClass(pClass) { return TRAVEL_CLASSES.includes(pClass); }
+
+  // Per-product details that appear on the quote.
+  const TRAVEL_PRODUCTS = {
+    'Vanguard Safe Travel Policy': {
+      underwriter: 'Vanguard Assurance Company Limited',
+      isPartner:   false
+    },
+    'Mapfre Travel Policy': {
+      underwriter: 'MAPFRE ASISTENCIA',
+      isPartner:   true
+    }
+  };
+
+  // Travel premiums follow the same VAT treatment as the other non-motor classes.
+  // Set to true if the underwriter's travel premium is quoted gross of tax and levies.
+  const TRAVEL_VAT_EXEMPT = false;
+
+  // Standard conditions added to every foreign travel quote.
+  const TRAVEL_CONDITIONS = [
+    'Cover applies to trips commencing in Ghana and is not valid for travel within Ghana',
+    'Pre-existing and chronic medical conditions are excluded unless specifically agreed in writing',
+    'Cover must be purchased before departure — no cover attaches once the journey has begun',
+    'Travellers must be medically fit to travel at the date of departure',
+    'Claims must be notified to the 24-hour assistance hotline before treatment, except in an emergency',
+    'Certificate of insurance is issued on receipt of full premium and a copy of each traveller\'s passport bio-data page'
+  ];
+
+  function travelProduct(pClass) { return TRAVEL_PRODUCTS[pClass] || null; }
+  function travelDestination() { return g('tv-destination'); }
+  function travelIsAnnual() { return (document.getElementById('tv-trip')?.value || 'SINGLE') === 'ANNUAL'; }
+
+  // Trip length in days, inclusive of both the start and end dates.
+  function travelDays() {
+    var s = g('p-start'), e = g('p-end');
+    if (!s || !e) return 0;
+    var d1 = new Date(s), d2 = new Date(e);
+    if (isNaN(d1) || isNaN(d2)) return 0;
+    var days = Math.round((d2 - d1) / 86400000) + 1;
+    return days > 0 ? days : 0;
+  }
+
+  function travelGroupPct() {
+    var el = document.getElementById('tv-group-disc');
+    var v = el ? parseFloat(String(el.value||'').replace(/,/g,'')) : 0;
+    if (!isFinite(v) || v < 0) v = 0;
+    if (v > 100) v = 100;
+    return v;
+  }
+
+  // Age at the date the policy starts (falls back to today when no start date is set).
+  function travelAgeAt(dobStr) {
+    if (!dobStr) return null;
+    var dob = new Date(dobStr);
+    if (isNaN(dob)) return null;
+    var ref = g('p-start') ? new Date(g('p-start')) : new Date();
+    if (isNaN(ref)) ref = new Date();
+    var age = ref.getFullYear() - dob.getFullYear();
+    var m = ref.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && ref.getDate() < dob.getDate())) age--;
+    return age >= 0 ? age : null;
+  }
+
+  // ── TRAVELLER ROWS ─────────────────────────────────────────────────────
+  let travelCount = 0;
+
+  function addTravellerRow() {
+    travelCount++;
+    const id = travelCount;
+    const wrap = document.createElement('div');
+    wrap.id = 'tv-' + id;
+    wrap.style.cssText = 'border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fafbfc;';
+    wrap.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+      + '<span style="font-size:11px;font-weight:700;color:#1a2e4a;text-transform:uppercase;letter-spacing:.04em;">Traveller ' + id + '</span>'
+      + '<button onclick="removeTravellerRow(' + id + ')" class="rm-btn"><i class="ti ti-x"></i></button>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
+      + '<div class="field" style="margin:0;grid-column:1/-1;"><label style="font-size:11px;">Full name (as in passport)</label>'
+      + '<input id="tv-name-' + id + '" placeholder="e.g. Kwabena Mensah" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
+      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Date of birth</label>'
+      + '<input id="tv-dob-' + id + '" type="date" onchange="recalcAllTravel()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
+      + '<div class="field" style="margin:0;"><label style="font-size:11px;">Passport number</label>'
+      + '<input id="tv-pass-' + id + '" placeholder="e.g. G1234567" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" /></div>'
+      + '<div class="field" style="margin:0;grid-column:1/-1;"><label style="font-size:11px;">Premium (<span class="tv-cur-lbl">' + getCurrency() + '</span>)</label>'
+      + '<input id="tv-prem-' + id + '" placeholder="e.g. 450.00" inputmode="decimal" oninput="fmtInput(this);calcTravelTotals()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;width:100%;box-sizing:border-box;font-family:Inter,sans-serif;" />'
+      + '<div id="tv-bd-' + id + '" style="font-size:10px;color:#6b7d8f;margin-top:4px;line-height:1.5;"></div></div>'
+      + '</div>';
+    document.getElementById('travel-rows-container').appendChild(wrap);
+    recalcAllTravel();
+  }
+
+  function removeTravellerRow(id) {
+    var el = document.getElementById('tv-' + id);
+    if (el) { el.remove(); recalcAllTravel(); }
+  }
+
+  function travellerRowIds() {
+    var ids = [];
+    document.querySelectorAll('[id^="tv-"]').forEach(function(el){
+      if (/^tv-\d+$/.test(el.id)) ids.push(el.id.replace('tv-',''));
+    });
+    return ids;
+  }
+
+  function readTravellerInputs(id) {
+    var dob = document.getElementById('tv-dob-' + id)?.value || '';
+    return {
+      name: document.getElementById('tv-name-' + id)?.value.trim() || '',
+      dob:  dob,
+      age:  travelAgeAt(dob),
+      pass: document.getElementById('tv-pass-' + id)?.value.trim() || '',
+      prem: parseFloat(String(document.getElementById('tv-prem-' + id)?.value || '').replace(/,/g,'')) || 0
+    };
+  }
+
+  function recalcAllTravel() {
+    if (!isTravelClass(g('p-class'))) return;
+    updateTravelUI();
+    // The only per-traveller derived value left is the age, shown under the premium field.
+    travellerRowIds().forEach(function(id){
+      var inp = readTravellerInputs(id);
+      var bd  = document.getElementById('tv-bd-' + id);
+      if (!bd) return;
+      bd.textContent = (inp.age !== null && inp.age !== undefined)
+        ? 'Age ' + inp.age + ' at the date cover starts.'
+        : '';
+    });
+    calcTravelTotals();
+  }
+
+  function calcTravelTotals() {
+    if (!isTravelClass(g('p-class'))) return;
+    var cur = getCurrency();
+    var sum = 0;
+    travellerRowIds().forEach(function(id){ sum += readTravellerInputs(id).prem; });
+
+    var groupPct  = travelGroupPct();
+    var groupDisc = sum * (groupPct / 100);
+    var net       = sum - groupDisc;
+
+    var fmtN = function(n){ return n > 0 ? n.toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2}) : ''; };
+
+    var gn = document.getElementById('tv-group-note');
+    if (gn) gn.innerHTML = groupDisc > 0
+      ? 'Group discount applied: −' + cur + ' ' + fmtN(groupDisc) + ' (' + parseFloat(groupPct.toFixed(2)) + '% of the total travel premium).'
+      : '';
+
+    var tp = document.getElementById('tv-total-prem');
+    if (tp) tp.value = fmtN(net);
+
+    // Feed the shared premium field the rest of the app works from. Travel carries no
+    // sum insured, so that field is left empty.
+    document.getElementById('p-basic-prem').value = fmtN(net);
+    document.getElementById('p-sum').value        = '';
+    calcGrossPrem();
+  }
+
+  function updateTravelUI() {
+    var prod = travelProduct(g('p-class'));
+    if (!prod) return;
+    var cur = getCurrency();
+
+    // Underwriter note — matters for the Mapfre product, which Vanguard distributes.
+    var un = document.getElementById('travel-underwriter-note');
+    if (un) {
+      if (prod.isPartner) {
+        un.style.display = 'block';
+        un.innerHTML = '<i class="ti ti-info-circle"></i> This policy is underwritten by <strong>' + prod.underwriter
+          + '</strong> and distributed by Vanguard Assurance.';
+      } else { un.style.display = 'none'; un.innerHTML = ''; }
+    }
+
+    // Trip duration read-out
+    var days   = travelDays();
+    var daysEl = document.getElementById('tv-days');
+    if (daysEl) {
+      if (travelIsAnnual())  daysEl.value = 'Annual — 365 days';
+      else if (!days)        daysEl.value = '';
+      else                   daysEl.value = days + ' day' + (days === 1 ? '' : 's');
+    }
+
+    document.querySelectorAll('.tv-cur-lbl').forEach(function(el){ el.textContent = cur; });
+    var tl = document.getElementById('lbl-tv-total');
+    if (tl) tl.textContent = 'Total travel premium (' + cur + ')';
+  }
+
+  // Rows in the shape the quote document and the saved-state helpers need.
+  function getTravelRows() {
+    return travellerRowIds().map(function(id){ return readTravellerInputs(id); });
+  }
+
+  // One-line description of the trip, used as the subject matter on the quote.
+  function travelSubjectDesc() {
+    var rows = getTravelRows();
+    var dest = travelDestination();
+    var bits = [];
+    bits.push(rows.length === 1 ? (rows[0].name || '1 traveller') : rows.length + ' travellers');
+    if (dest) bits.push('to ' + dest);
+    bits.push(travelIsAnnual() ? 'annual multi-trip' : (travelDays() ? travelDays() + ' days' : ''));
+    return bits.filter(Boolean).join(' — ');
+  }
+
   const BOND_DOC_CLASSES = [
     'Performance Bond',
     'Advance Payment / Mobilization Bond'
@@ -1447,6 +1712,13 @@
     // Guarded: motor rows persist in the DOM behind a hidden section, and calcMotorTotals
     // writes p-basic-prem / p-sum — which would clobber a non-motor quote.
     if (isMotorClass(document.getElementById('p-class')?.value || '')) recalcAllMotor();
+    // Travel totals are shown in the quote currency.
+    if (isTravelClass(document.getElementById('p-class')?.value || '')) recalcAllTravel();
+  }
+
+  // Travel rating is driven by the trip dates, so keep it in step with them.
+  function onPolicyDatesChange() {
+    if (isTravelClass(g('p-class'))) recalcAllTravel();
   }
 
   function calcVAT() {
@@ -1538,6 +1810,9 @@
     'Marine Cargo Exports':                       'ME',
     'Marine Certificate Policies':                'MP',
     'Stevedores Legal Liability':                 'SL',
+    // Foreign Travel
+    'Vanguard Safe Travel Policy':                'TV',
+    'Mapfre Travel Policy':                       'TM',
   };
 
   function genQuoteRef(pClass) {
@@ -1555,29 +1830,40 @@
 
   function onClassChange() {
     updateQuoteRef();
-    const pClass  = g('p-class');
-    const isMotor = isMotorClass(pClass);
+    const pClass   = g('p-class');
+    const isMotor  = isMotorClass(pClass);
+    const isTravel = isTravelClass(pClass);
+    // Motor and travel both replace the generic subject-matter fields with their own schedule.
+    const hasOwnSchedule = isMotor || isTravel;
 
     // Show/hide motor section vs standard subject matter fields
     const motorSec    = document.getElementById('motor-section');
+    const travelSec   = document.getElementById('travel-section');
     const tsiSec      = document.getElementById('tsi-breakdown-section');
     const pRiskField  = document.getElementById('p-risk')?.closest('.field');
     const pSumField   = document.getElementById('p-sum')?.closest('.field');
     const pBasicField = document.getElementById('p-basic-prem')?.closest('.field');
-    if (motorSec)    motorSec.style.display    = isMotor ? 'block' : 'none';
+    if (motorSec)    motorSec.style.display    = isMotor  ? 'block' : 'none';
+    if (travelSec)   travelSec.style.display   = isTravel ? 'block' : 'none';
     // Dual-excess option only exists for Comprehensive cover (excess/buy-back is Comprehensive-only).
     const dualWrap = document.getElementById('motor-dual-wrap');
     if (dualWrap) dualWrap.style.display = (pClass === 'Motor — Comprehensive') ? 'block' : 'none';
-    if (tsiSec)      tsiSec.style.display      = isMotor ? 'none'  : 'block';
-    if (pRiskField)  pRiskField.style.display  = isMotor ? 'none'  : 'block';
-    if (pSumField)   pSumField.style.display   = isMotor ? 'none'  : 'block';
-    if (pBasicField) pBasicField.style.display = isMotor ? 'none'  : 'block';
+    if (tsiSec)      tsiSec.style.display      = hasOwnSchedule ? 'none' : 'block';
+    if (pRiskField)  pRiskField.style.display  = hasOwnSchedule ? 'none' : 'block';
+    if (pSumField)   pSumField.style.display   = hasOwnSchedule ? 'none' : 'block';
+    if (pBasicField) pBasicField.style.display = hasOwnSchedule ? 'none' : 'block';
 
     // Add first vehicle row if switching to motor with no rows yet
     if (isMotor) {
       const wrappers = [...document.querySelectorAll('[id^="mv-"]')].filter(function(el){ return /^mv-\d+$/.test(el.id); });
       if (wrappers.length === 0) addMotorRow();
       recalcAllMotor();   // recompute premiums for the newly-selected cover (TP / TPFT / Comprehensive)
+    }
+
+    // Travel — add a first traveller row if switching to travel with none yet.
+    if (isTravel) {
+      if (travellerRowIds().length === 0) addTravellerRow();
+      recalcAllTravel();
     }
 
     const note = document.getElementById('basic-prem-note');
@@ -1619,7 +1905,23 @@
       ? 'e.g. Construction workers, Office staff, Factory employees'
       : 'e.g. Office building and contents, Suzuki Grand Vitara GR-1234';
 
-    if (!isMotor) calcGrossPrem();
+    if (!isMotor && !isTravel) calcGrossPrem();
+
+    // Travel — auto-populate the standard travel conditions, and take them back out
+    // again when the class changes to something else.
+    const _tvNotes = document.getElementById('t-notes');
+    if (_tvNotes) {
+      const _cur = _tvNotes.value.trim();
+      if (isTravel) {
+        if (!TRAVEL_CONDITIONS.some(l => _cur.includes(l))) {
+          _tvNotes.value = (_cur ? _cur + '\n' : '') + TRAVEL_CONDITIONS.join('\n');
+        }
+      } else if (TRAVEL_CONDITIONS.some(l => _cur.includes(l))) {
+        _tvNotes.value = _cur.split('\n')
+          .filter(l => !TRAVEL_CONDITIONS.some(tc => l.trim() === tc))
+          .join('\n').trim();
+      }
+    }
 
     // Motor — auto-populate standard conditions
     const _notesEl = document.getElementById('t-notes');
@@ -1696,6 +1998,26 @@
         document.getElementById('motor-fx-rate')?.focus();
         return;
       }
+      // \u2500\u2500 Travel guards: at least one traveller, each with a premium entered.
+      if (isTravelClass(g('p-class'))) {
+        const _bail = function(msg, focusId) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="ti ti-eye"></i> Generate quote';
+          alert(msg);
+          document.getElementById(focusId)?.focus();
+        };
+        const _tvRows = getTravelRows();
+        if (!_tvRows.length) {
+          _bail('\u26a0\ufe0f  Add at least one traveller before generating this travel quote.', 'tv-destination');
+          return;
+        }
+        const _tvNoPrem = _tvRows.filter(function(r){ return !r.prem; });
+        if (_tvNoPrem.length) {
+          _bail('\u26a0\ufe0f  Enter a premium for:\n\n'
+            + _tvNoPrem.map(function(r,i){ return '\u2022 ' + (r.name || 'Traveller ' + (i+1)); }).join('\n'), 'tv-prem-1');
+          return;
+        }
+      }
       const coName   = g('co-name')   || 'Vanguard Assurance Company Limited';
       const coTel    = g('co-tel');
       const coWeb    = g('co-web');
@@ -1717,7 +2039,9 @@
       const pCur     = getCurrency();
       const pStart   = g('p-start');
       const pEnd     = g('p-end');
-      const pRisk    = isMotorClass(pClass) ? _motorDesc : (g('p-risk') || '');
+      const pRisk    = isMotorClass(pClass)  ? _motorDesc
+                     : isTravelClass(pClass) ? travelSubjectDesc()
+                     : (g('p-risk') || '');
       const pExcess  = g('p-excess');
       const pPayDue  = g('p-paydue') || 'On receipt';
       const payIntro = g('pay-intro');
@@ -1732,10 +2056,11 @@
       const logoSrc   = LOGO_DATA_URL;
       const stampSrc  = STAMP_DATA_URL;
 
-      // ── Duplicate check (skipped for motor — high volume makes sum-insured matching unreliable).
-      // Also skipped when regenerating a quote created or loaded on this screen (same person
-      // editing their own quote — in-session amendment or a My Quotes "Load & Edit").
-      if (pClass && pSum && !isMotorClass(pClass) && !_sessionRefs.has(pInv)) {
+      // ── Duplicate check (skipped for motor and foreign travel — in both classes the sum
+      // insured is a tariff figure rather than a client-specific value, so matching on it is
+      // unreliable). Also skipped when regenerating a quote created or loaded on this screen
+      // (same person editing their own quote — in-session amendment or a My Quotes "Load & Edit").
+      if (pClass && pSum && !isMotorClass(pClass) && !isTravelClass(pClass) && !_sessionRefs.has(pInv)) {
         const recent = await fetchRecentQuotes();
         const sevenDaysAgo = Date.now() - (7*24*60*60*1000);
         const normSum = parseFloat(String(pSum).replace(/,/g,''));
@@ -1770,7 +2095,17 @@
       }
 
       // ── Log quote
-      const isMotor = isMotorClass(pClass);
+      const isMotor  = isMotorClass(pClass);
+      const isTravel = isTravelClass(pClass);
+      // Travel figures needed for both the schedule and the totals below.
+      const tvDest     = isTravel ? travelDestination()     : '';
+      const tvAnnual   = isTravel ? travelIsAnnual()        : false;
+      const tvRows     = isTravel ? getTravelRows()         : [];
+      const tvSubTotal = tvRows.reduce(function(s,r){ return s + (r.prem||0); }, 0);   // before group discount
+      const tvGroupPct = isTravel ? travelGroupPct()        : 0;
+      const tvGroupAmt = tvSubTotal * (tvGroupPct / 100);
+      const tvNetPrem  = tvSubTotal - tvGroupAmt;
+      const tvDays     = isTravel ? travelDays()            : 0;
       // Pre-compute motor totals needed for sheet logging and quote rendering
       const motorVehiclesForCalc = isMotor ? getMotorRows() : [];
       const motorGrandGross = motorVehiclesForCalc.reduce((s,r)=>s+(r._calc?r._calc.gross:0),0);   // before NCD & fleet
@@ -1823,13 +2158,15 @@
       const tsiAddonTotal = tsiRows.reduce((s,r)=>s+(parseFloat(String(r.p||0).replace(/,/g,''))||0),0);
       const grossPrem  = isWC ? basicPrem + tsiAddonTotal : basicPrem;
 
-      const isVatable  = pClass && !isBondClass(pClass) && !isMotorClass(pClass);
+      const isVatable  = pClass && !isBondClass(pClass) && !isMotorClass(pClass)
+                         && !(isTravel && TRAVEL_VAT_EXEMPT);
 
       let allExtraRows = [...xPremRows];
       const extraTotal = allExtraRows.reduce((s,r)=>s+(r.v||0),0);
 
       // For motor: effectiveGross = sum of all vehicle premiums (motorVehiclesForCalc/Prem/Val already computed above)
-      const effectiveGross = isMotor ? motorGrandPrem : grossPrem;
+      // For travel: the traveller premiums, less any group discount.
+      const effectiveGross = isMotor ? motorGrandPrem : (isTravel ? tvNetPrem : grossPrem);
       const vatAmt         = isVatable ? effectiveGross * VAT_RATE : 0;
       const totalPrem      = effectiveGross + vatAmt + extraTotal;
       // Option 1 total for dual-excess quotes (motor is VAT-exempt; extra items apply to both options).
@@ -2030,6 +2367,61 @@
             + motorExcessHTML))
         : '';
 
+      // ── Foreign travel schedule: travellers and premium build-up ──
+      const travelSubjectHTML = !isTravel ? '' : (function(){
+        const travellerRowsHTML = tvRows.map(function(r,i){
+          return '<tr>'
+            + '<td style="'+S.td+'">'+(r.name || ('Traveller '+(i+1)))+'</td>'
+            + '<td style="'+S.tdC+'">'+(r.dob ? fmtDate(r.dob) : '—')+'</td>'
+            + '<td style="'+S.tdC+'">'+(r.age !== null && r.age !== undefined ? r.age : '—')+'</td>'
+            + '<td style="'+S.tdC+'">'+(r.pass || '—')+'</td>'
+            + '<td style="'+S.tdR+'">'+fmt(r.prem)+'</td>'
+            + '</tr>';
+        }).join('');
+
+        const subTotalHTML = tvRows.length > 1
+          ? '<tr><td colspan="4" style="'+S.tdBold+'">Sub-Total</td><td style="'+S.tdBoldR+'">'+fmt(tvSubTotal)+'</td></tr>'
+          : '';
+        const groupHTML = tvGroupAmt > 0
+          ? '<tr><td colspan="4" style="'+S.td+'">Less group / family discount ('+parseFloat(tvGroupPct.toFixed(2))+'%)</td>'
+            +'<td style="'+S.tdR+'">('+fmt(tvGroupAmt)+')</td></tr>'
+          : '';
+        const tvVatHTML = (isVatable && vatAmt > 0)
+          ? '<tr><td colspan="4" style="'+S.td+'">VAT ('+(VAT_RATE*100)+'%)</td><td style="'+S.tdR+'">'+fmt(vatAmt)+'</td></tr>'
+          : '';
+        const tvExtraHTML = allExtraRows.map(function(r){
+          return '<tr><td colspan="4" style="'+S.td+'">'+r.l+'</td><td style="'+S.tdR+'">'+fmt(r.v)+'</td></tr>';
+        }).join('');
+
+        return '<table style="'+S.tbl+'">'
+          + '<thead><tr>'
+          + '<th style="'+S.thNav+';text-align:left;width:34%;">Traveller</th>'
+          + '<th style="'+S.thNavR+';width:15%;">Date of Birth</th>'
+          + '<th style="'+S.thNavR+';width:8%;">Age</th>'
+          + '<th style="'+S.thNavR+';width:20%;">Passport No.</th>'
+          + '<th style="'+S.thNavR+';width:23%;">Premium ('+pCur+')</th>'
+          + '</tr></thead><tbody>'
+          + travellerRowsHTML
+          + subTotalHTML
+          + groupHTML
+          + tvVatHTML
+          + tvExtraHTML
+          + '<tr><td colspan="4" style="'+S.tdTotL+'">TOTAL PREMIUM PAYABLE</td>'
+          + '<td style="'+S.tdTotal+'">'+pCur+' '+fmt(totalPrem)+'</td></tr>'
+          + '</tbody></table>'
+          + '<div style="font-size:9px;color:#8a96a3;margin-top:4px;padding:0 14px;line-height:1.45;">'
+          + 'Ages are taken at the date cover starts.</div>';
+      })();
+
+      // Travel-specific lines added to the Policy Details block.
+      const travelPolicyHTML = !isTravel ? '' : (
+        '<strong>Destination:</strong> ' + (tvDest || '—') + '<br>'
+        + '<strong>Trip Basis:</strong> ' + (tvAnnual
+            ? 'Annual multi-trip'
+            : (tvDays ? 'Single trip — ' + tvDays + ' day' + (tvDays === 1 ? '' : 's') : 'Single trip')) + '<br>'
+        + '<strong>Travellers:</strong> ' + tvRows.length
+      );
+
       // ── Fixed layout
 
       // Bank columns
@@ -2110,15 +2502,17 @@
         +'<div style="font-size:'+fsS+';line-height:1.55;">'
         +'<strong>Type of Policy:</strong> '+pClass+'<br>'
         +(period?'<strong>Period of Cover:</strong> '+period+'<br>':'')
-        +'<strong>Cover Basis:</strong> Annual / 12 months'
+        +(isTravel ? travelPolicyHTML : '<strong>Cover Basis:</strong> Annual / 12 months')
         +(pExcess?'<br><strong>Excess / Deductible:</strong> '+pExcess:'')
         +'</div></div>'
         +'</div>'
 
         // SUBJECT MATTER & PREMIUM (or VEHICLES & PREMIUM for motor)
-        +'<div style="'+S.secHdr+'">'+(isMotor ? 'Vehicles &amp; Premium' : 'Subject Matter &amp; Premium')+'</div>'
+        +'<div style="'+S.secHdr+'">'+(isMotor ? 'Vehicles &amp; Premium' : isTravel ? 'Travellers &amp; Premium' : 'Subject Matter &amp; Premium')+'</div>'
         +(isMotor
           ? motorSubjectHTML
+          : isTravel
+          ? travelSubjectHTML
           : '<table style="'+S.tbl+'">'
             +'<thead><tr>'
             +'<th style="'+S.thNav+';width:50%;">Subject Matter Insured</th>'
@@ -2357,11 +2751,30 @@
         prem:  document.getElementById('mv-prem-'+id)?.value  || ''
       });
     });
+    // Traveller rows (foreign travel classes)
+    var travelRowsState = [];
+    travellerRowIds().forEach(function(id){
+      travelRowsState.push({
+        name: document.getElementById('tv-name-'+id)?.value || '',
+        dob:  document.getElementById('tv-dob-'+id)?.value  || '',
+        pass: document.getElementById('tv-pass-'+id)?.value || '',
+        prem: document.getElementById('tv-prem-'+id)?.value || ''
+      });
+    });
     return {
       savedAt:    new Date().toISOString(),
       pInv:       document.getElementById('p-inv')?.value        || '',
       pDate:      document.getElementById('p-date')?.value       || '',
       pClass:     document.getElementById('p-class')?.value      || '',
+      // Period of cover appears on the travel schedule, so it travels with the saved quote.
+      pStart:     document.getElementById('p-start')?.value      || '',
+      pEnd:       document.getElementById('p-end')?.value        || '',
+      pExcess:    document.getElementById('p-excess')?.value     || '',
+      tNotes:     document.getElementById('t-notes')?.value      || '',
+      tvDestination: document.getElementById('tv-destination')?.value || '',
+      tvTrip:        document.getElementById('tv-trip')?.value        || 'SINGLE',
+      tvGroupDisc:   document.getElementById('tv-group-disc')?.value  || '',
+      travelRows:    travelRowsState,
       pCurrency:  document.getElementById('p-currency')?.value   || 'GHS',
       pRisk:      document.getElementById('p-risk')?.value       || '',
       pSum:       document.getElementById('p-sum')?.value        || '',
@@ -2403,6 +2816,15 @@
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val||''; };
     set('p-date',        state.pDate);
     set('p-class',       state.pClass);
+    // Period of cover — restored before onClassChange so travel rating sees the trip dates.
+    if (state.pStart !== undefined) set('p-start', state.pStart);
+    if (state.pEnd   !== undefined) set('p-end',   state.pEnd);
+    if (state.pExcess !== undefined) set('p-excess', state.pExcess);
+    if (state.tNotes !== undefined && state.tNotes !== '') set('t-notes', state.tNotes);
+    set('tv-destination', state.tvDestination);
+    set('tv-group-disc',  state.tvGroupDisc);
+    const _tripSel = document.getElementById('tv-trip');
+    if (_tripSel && state.tvTrip) _tripSel.value = state.tvTrip;
     set('p-currency',    state.pCurrency || 'GHS');   // legacy quotes predate currency saving
     set('p-risk',        state.pRisk);
     set('p-sum',         state.pSum);
@@ -2476,6 +2898,21 @@
         sv('mv-prem-', r.prem);
       }
     });
+    // Restore traveller rows (foreign travel). onClassChange has already seeded a blank
+    // traveller — clear it and rebuild from the saved state.
+    if (isTravelClass(state.pClass || '')) {
+      const _tvContainer = document.getElementById('travel-rows-container');
+      if (_tvContainer) _tvContainer.innerHTML = '';
+      travelCount = 0;
+      (state.travelRows || []).forEach(function(r){
+        addTravellerRow();
+        var id = travelCount;
+        var sv = function(fid, val){ var el = document.getElementById(fid+id); if (el) el.value = val||''; };
+        sv('tv-name-', r.name); sv('tv-dob-', r.dob); sv('tv-pass-', r.pass); sv('tv-prem-', r.prem);
+      });
+      recalcAllTravel();
+    }
+
     // Refresh currency-dependent labels. For motor we call updateMotorFxUI directly rather than
     // updateCurrencyLabels, because the latter recalculates every row — which would overwrite the
     // saved premium deliberately preserved above for legacy (unrecognised-category) quotes.
